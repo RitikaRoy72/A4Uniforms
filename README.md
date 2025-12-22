@@ -1,14 +1,14 @@
 # A4Uniforms
 Maintain Uniforms Division Data Det 520
 
-#Purpose
+# Purpose
 - Convert legacy Google Sheets into a standardized “Teams-style” spreadsheet format
 - Centralized inventory management
 - Accountability (who has what, when it was issued, condition)
 - Easy access for cadets + cadre
 - Auditability
 
-#Timeline
+# Timeline
 - 22 Dec: Git Repo and Planning
 - 23 Dec: Project details
 - 26 Dec: PT1 Core
@@ -25,14 +25,14 @@ Maintain Uniforms Division Data Det 520
   - UI cleanup
   - Deployment
 
-#Stack
+# Stack
 Frontend: HTML + CSS + JavaScript
 Backend: Python (Flask)
 Database: SQLite → PostgreSQL
 Auth: Flask-Login
 Deployment: Render / Railway
 
-#Architecture
+# Architecture
 Browser (Web App)
    |
    | HTTP Requests
@@ -43,15 +43,15 @@ Flask Backend (API)
    v
 PostgreSQL Database
 
-#Table
-*Cadets*
+# Table
+* Cadets *
 first_name
 last_name
 class_year
 rank
 email
 
-*Uniforms*
+* Uniforms *
 type: PTG, OCP, BLUE
 item_type (ex. OCP Pants, Boots)
 size
@@ -59,7 +59,7 @@ serial_number
 condition (New / Good / Worn / Damaged)
 status (In Stock / Issued / Lost)
 
-*Issuance Log*
+* Issuance Log *
 cadet rank
 cadet first name
 cadet last name
@@ -71,14 +71,14 @@ issued_by
 condition_out
 condition_in
 
-*Legacy Imports*
+* Legacy Imports *
 id (PK)
 source_file
 import_date
 rows_imported
 status
 
-*Old Sheet Column → New Field*
+* Old Sheet Column → New Field *
 "Cadet Name"     → cadet_name
 "Uniform Size"   → size
 "Item Type"      → item_type
