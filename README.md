@@ -62,3 +62,8 @@ A4Uniforms/ <br>
 
 # Contributing
 Contributions are welcome! Feel free to submit pull requests for bug fixes, enhancements, or additional features.
+
+# Bugs
+* Uniforms requests and displays
+* Adding a reset button to the display tab
+* testing and validation of file upload
