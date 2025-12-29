@@ -60,6 +60,53 @@ A4Uniforms/ <br>
 │   └── images <br>
 │        └── det520.png <br>
 
+# Project Updates Log: https://docs.google.com/document/d/1XySOlcomjNhRcHuvFETMcPWZkMtwsbMxRUwVOSrEWCE/edit?tab=t.0
+### Dec 29
+*Estimated Total Time: 3 hours*
+* Goal 1: Updated README.md
+    * Added a bug section
+    * Fixed project tree display
+    * Added a deployment section
+* Goal 2: Reading documentation
+    * Determine a software for deploying the app:
+    * Render: https://render.com/
+    * Railway: https://railway.com/enterprise?gad_source=1&gad_campaignid=23229512525&gbraid=0AAAABBOsx_otSKo3KEMz-vIqqZtXSKteG&gclid=Cj0KCQiA6sjKBhCSARIsAJvYcpNx5RKGO_hkBoyQpsEY0Y347O5uXYgrXOadMXINQ66Uqwebp-dpY2UaAlodEALw_wcB
+    * Heroku: https://devcenter.heroku.com/categories/deployment
+
+### Dec 28
+*Estimated Total Time: 10 hours*
+* Goal 1: Finish user interface
+    * Wrote html user interaction
+* Goal 2: Create back end routers
+    * Used flask.App to route every pipeline from user interaction to python process
+* Goal 3: Correct data base handling
+* Goal 4: Start debugging
+* ToDo: Fix error in Uniform requests
+
+### Dec 24
+*Estimated Total Time: 8 hours*
+* Goal 1: Implement FLASK
+    * Used the following resources:
+        * https://www.geeksforgeeks.org/installation-guide/how-to-install-flask-in-windows/
+        * https://python-adv-web-apps.readthedocs.io/en/latest/flask.html
+        * https://www.python.org/downloads/release/python-3142/
+        * https://www.geeksforgeeks.org/python/python-pip/
+* Goal 2: Create basic working architecture of program
+    * Created flaskAPP.py backend in python
+    * Created index.html front end for
+    * Created css and js for handling of user interface interactions
+
+### Dec 23
+*Estimated Total Time: 4 hour*
+* Goal 1: Program Architecture
+    * Designed a program architecture
+    * Created Project outline
+    * Share project outline
+* Goal 2: Develop Read Me Doc
+    * All documents uploaded to gitHub: https://github.com/RitikaRoy72/A4Uniforms
+
+
+
 # Contributing
 Contributions are welcome! Feel free to submit pull requests for bug fixes, enhancements, or additional features.
 
