@@ -140,7 +140,6 @@ def load_inventory_excel(filepath):
     return data
 
 REQUESTS_FILE = "data/uniform_requests.csv"
-
 os.makedirs(os.path.dirname(REQUESTS_FILE), exist_ok=True)
 @app.route("/requests", methods=["GET", "POST"])
 def requests_page():
