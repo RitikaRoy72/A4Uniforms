@@ -1,26 +1,39 @@
-{% extends "base.html" %}
+{% extends "home.html" %}
+{% block title %}Inventory{% endblock %}
 
 {% block content %}
-<h2>Uniform Inventory</h2>
+<h2>Supply Inventory</h2>
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Item Type</th>
-            <th>Size</th>
-            <th>Condition</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for item in items %}
-        <tr>
-            <td>{{ item.item_type }}</td>
-            <td>{{ item.size }}</td>
-            <td>{{ item.condition }}</td>
-            <td>{{ item.status }}</td>
-        </tr>
+{% for sheet_name, rows in inventory_data.items() %}
+  <h4 class="mt-4">{{ sheet_name }}</h4>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-sm">
+
+      <tbody>
+        {% for row in rows %}
+
+          {% if row.type == "section" %}
+            <tr class="table-secondary">
+              <th colspan="100">{{ row.title }}</th>
+            </tr>
+
+          {% elif row.type == "break" %}
+            <tr><td colspan="100">&nbsp;</td></tr>
+
+          {% else %}
+            <tr>
+              {% for cell in row.cells %}
+                <td>{{ cell if cell is not none else "" }}</td>
+              {% endfor %}
+            </tr>
+
+          {% endif %}
+
         {% endfor %}
-    </tbody>
-</table>
+      </tbody>
+    </table>
+  </div>
+{% endfor %}
+
 {% endblock %}

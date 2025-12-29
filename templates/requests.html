@@ -1,0 +1,50 @@
+{% extends "home.html" %}
+{% block title %}Request Uniform Items{% endblock %}
+
+{% block content %}
+<h2>Request Uniform Items</h2>
+<form method="post">
+
+    <label>First Name</label>
+    <input type="text" name="first_name" required><br><br>
+
+    <label>Last Name</label>
+    <input type="text" name="last_name" required><br><br>
+
+    <label>Rank</label>
+    <select name="rank" required>
+        <option value=""></option>
+        <option value="100">100</option>
+        <option value="150">150</option>
+        <option value="200">200</option>
+        <option value="250">250</option>
+        <option value="300">300</option>
+        <option value="400">400</option>
+        <option value="500">500</option>
+    </select><br><br>
+
+    <label>Uniform Type</label>
+    <select name="uniform_type" required>
+        <option value=""></option>
+        <option value="PTG">PTG</option>
+        <option value="OCP">OCP</option>
+        <option value="Blues">Blues</option>
+        <option value="Det Issued">Det Issued</option>
+    </select><br><br>
+
+    <label>Uniform Item</label>
+    <input type="text" name="uniform_item" required><br><br>
+
+    <label>Size</label>
+    <input type="text" name="size"><br><br>
+
+    <label>Reason</label>
+    <input type="text" name="reason" required><br><br>
+
+    <button type="submit">Request</button>
+</form>
+
+
+
+
+{% endblock %}

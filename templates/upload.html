@@ -1,0 +1,30 @@
+{% extends "home.html" %}
+{% block title %}Upload Data{% endblock %}
+
+{% block content %}
+<h2>Upload & Replace Data File</h2>
+
+<form method="post" enctype="multipart/form-data">
+
+  <label>Choose file to upload</label><br>
+  <input type="file" name="file" required><br><br>
+
+  <label>Replace existing file:</label><br>
+  <select name="target" required>
+    <option value="">-- Select --</option>
+    <option value="cadets_blues">Cadet Data – Blues</option>
+    <option value="cadets_ocp">Cadet Data – OCP</option>
+    <option value="cadets_ptg">Cadet Data – PTG</option>
+    <option value="inventory">Supply Inventory</option>
+  </select><br><br>
+
+  <button type="submit" class="btn btn-danger">
+    Upload & Overwrite
+  </button>
+
+    {% if message %}
+    <div class="alert alert-success">{{ message }}</div>
+    {% endif %}
+
+</form>
+{% endblock %}

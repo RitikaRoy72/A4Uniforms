@@ -1,0 +1,41 @@
+{% extends "home.html" %}
+{% block title %}Approve Requests{% endblock %}
+
+{% block content %}
+<h2>Uniform Requests Approval</h2>
+
+<table class="table table-bordered table-sm">
+  <thead>
+    <tr>
+      <th>Cadet</th>
+      <th>Item</th>
+      <th>Size</th>
+      <th>Reason</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for r in requests %}
+    <tr>
+      <td>{{ r.rank }} {{ r.last_name }}</td>
+      <td>{{ r.uniform_type }} - {{ r.uniform_item }}</td>
+      <td>{{ r.size }}</td>
+      <td>{{ r.reason }}</td>
+      <td>{{ r.status }}</td>
+
+      <td>
+        {% if r.status == "PENDING" %}
+        <form method="post" style="display:inline">
+          <input type="hidden" name="index" value="{{ loop.index0 }}">
+          <button name="action" value="APPROVED" class="btn btn-success btn-sm">Approve</button>
+          <button name="action" value="DENIED" class="btn btn-danger btn-sm">Deny</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

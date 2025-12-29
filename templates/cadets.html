@@ -1,0 +1,36 @@
+{% extends "home.html" %}
+{% block title %}Cadets{% endblock %}
+
+{% block content %}
+<h2>Cadet Issued Uniforms</h2>
+
+{% for category, table in cadet_data.items() %}
+  <h3>{{ category }}</h3>
+
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr>
+        <th>Cadet</th>
+        {% for ut in table.uniform_types %}
+          <th>{{ ut }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for row in table.rows %}
+        <tr>
+          <td>
+            {{ row.cadet.name }}<br>
+            <small>{{ row.cadet.status }} | {{ row.cadet.gender }}</small>
+          </td>
+
+          {% for size in row.sizes %}
+            <td>{{ size or "" }}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endfor %}
+{% endblock %}
