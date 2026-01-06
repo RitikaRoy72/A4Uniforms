@@ -2,24 +2,40 @@ import openpyxl
 import re
 
 def clean_uniform_name(header):
-    # Remove gender notes and "- Size"
-    name = re.sub(r"\s*-\s*Size.*$", "", header)
-    name = re.sub(r"\(.*?\)", "", name)
-    return name.strip()
+    header = re.sub(r"\(.*?\)", "", header)
+    header = re.sub(r"\s*-\s*Size.*$", "", header)
+    header = re.sub(r"\s*Size.*$", "", header)
+    return header.strip()
 
 def load_cadet_excel(filepath):
     wb = openpyxl.load_workbook(filepath)
     ws = wb.active
 
-    headers = [cell.value for cell in ws[1]]
-    uniform_headers = headers[3::2]
-    uniform_names = [clean_uniform_name(h) for h in uniform_headers]
+    headers = [
+        cell.value.strip() if isinstance(cell.value, str) else ""
+        for cell in ws[1]
+    ]
+
+    uniform_items = []
+    column_map = {}
+
+    i = 3  # start after Name / Status / Gender
+    while i < len(headers) - 1:
+        h = headers[i]
+        next_h = headers[i + 1]
+
+        # Detect Size/Qty column pairs by position
+        if re.search(r"size", h, re.IGNORECASE) and re.search(r"qty|quantity", next_h, re.IGNORECASE):
+            item = clean_uniform_name(h)
+            uniform_items.append(item)
+            column_map[item] = (i, i + 1)
+            i += 2
+        else:
+            i += 1
 
     rows = []
 
     for row in ws.iter_rows(min_row=2, values_only=True):
-
-        # Stop at first empty cadet row
         if not any(row[0:3]):
             break
 
@@ -29,16 +45,19 @@ def load_cadet_excel(filepath):
             "gender": row[2],
         }
 
-        sizes = []
-        for i in range(3, len(row), 2):
-            sizes.append(row[i])
+        items = {}
+        for item, (size_col, qty_col) in column_map.items():
+            items[item] = {
+                "size": row[size_col] if size_col < len(row) else "",
+                "qty": row[qty_col] if qty_col < len(row) else "",
+            }
 
         rows.append({
             "cadet": cadet,
-            "sizes": sizes
+            "items": items
         })
 
     return {
-        "uniform_types": uniform_names,
+        "uniform_items": uniform_items,
         "rows": rows
     }

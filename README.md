@@ -60,7 +60,8 @@ A4Uniforms/ <br>
 │   └── images <br>
 │        └── det520.png <br>
 
-# Project Updates Log: https://docs.google.com/document/d/1XySOlcomjNhRcHuvFETMcPWZkMtwsbMxRUwVOSrEWCE/edit?tab=t.0
+# Project Updates Log: 
+https://docs.google.com/document/d/1XySOlcomjNhRcHuvFETMcPWZkMtwsbMxRUwVOSrEWCE/edit?tab=t.0
 ### Dec 29
 *Estimated Total Time: 3 hours*
 * Goal 1: Updated README.md

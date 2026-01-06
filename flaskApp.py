@@ -59,16 +59,12 @@ def upload():
 
         target_path = UPLOAD_TARGETS[target_key]
 
-        # BACKUP FIRST
-        backup_file(target_path)
-        cleanup_old_backups(target_path, keep=10)
-
         # Overwrite the target file
         file.save(target_path)
 
         return render_template(
             "upload.html",
-            message="File uploaded successfully. Backup created."
+            message="File uploaded successfully."
         )
 
     return render_template("upload.html")
@@ -139,6 +135,7 @@ def load_inventory_excel(filepath):
 
     return data
 
+
 REQUESTS_FILE = "data/uniform_requests.csv"
 os.makedirs(os.path.dirname(REQUESTS_FILE), exist_ok=True)
 @app.route("/requests", methods=["GET", "POST"])
@@ -169,61 +166,29 @@ def requests_page():
         return redirect(url_for("requests_page"))
 
     return render_template("requests.html")
+
+CSV_FILE = "data/uniform_requests.csv"
 @app.route("/approve", methods=["GET", "POST"])
 def approve_requests():
-    if not os.path.exists(REQUESTS_FILE):
-        return render_template("approve.html", requests=[])
-
-    with open(REQUESTS_FILE, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        requests_data = list(reader)
 
     if request.method == "POST":
-        index = int(request.form["index"])
-        action = request.form["action"]
-        requests_data[index]["status"] = action
+        if request.form.get("reset") == "reset":
+            with open(CSV_FILE, newline="", encoding="utf-8") as file:
+                reader = csv.reader(file)
+                headers = next(reader)
 
-        with open(REQUESTS_FILE, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=requests_data[0].keys())
-            writer.writeheader()
-            writer.writerows(requests_data)
+            with open(CSV_FILE, "w", newline="", encoding="utf-8") as file:
+                writer = csv.writer(file)
+                writer.writerow(headers)
 
-        return redirect(url_for("approve_requests"))
+            return redirect(url_for("approve_requests"))
 
-    return render_template("approve.html", requests=requests_data)
+    with open(CSV_FILE, newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        requests = list(reader)
 
-def backup_file(filepath):
-    if not os.path.exists(filepath):
-        return  # nothing to back up
+    return render_template("approve.html", requests=requests)
 
-    backup_root = "backups"
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-    # Preserve folder structure
-    rel_path = filepath.replace("\\", "/")
-    backup_path = os.path.join(
-        backup_root,
-        os.path.dirname(rel_path),
-    )
-
-    os.makedirs(backup_path, exist_ok=True)
-
-    base, ext = os.path.splitext(os.path.basename(filepath))
-    backup_filename = f"{base}_{timestamp}{ext}"
-
-    shutil.copy2(
-        filepath,
-        os.path.join(backup_path, backup_filename)
-    )
-
-def cleanup_old_backups(folder, keep=10):
-    files = sorted(
-        [os.path.join(folder, f) for f in os.listdir(folder)],
-        key=os.path.getmtime,
-        reverse=True
-    )
-    for f in files[keep:]:
-        os.remove(f)
 
 if __name__ == "__main__":
     app.run(debug=True)

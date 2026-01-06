@@ -1,9 +1,1 @@
-2025-12-28T21:49:52.387469,try,this,100,PTG,shirt,small,idk
-2025-12-28T22:36:17.959860,try,this,100,PTG,small,small,idk,PENDING
-2025-12-28T22:36:51.871657,try,this,100,PTG,small,small,idk,PENDING
-2025-12-28T22:37:29.795585,try,this,100,PTG,small,small,idk,PENDING
-2025-12-28T22:39:00.450233,try,this,100,PTG,small,small,idk,PENDING
-2025-12-28T22:40:46.547822,try,this,100,PTG,small,small,idk,PENDING
-2025-12-28T22:46:36.695989,try,this,100,PTG,small,small,idk,PENDING
-2025-12-28T22:48:02.132716,try,this,100,PTG,small,small,idk,PENDING
-2025-12-28T22:50:03.678731,try,this,100,PTG,small,small,idk,PENDING
+rank,last_name,uniform_type,uniform_item,size,reason,status

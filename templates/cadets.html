@@ -11,8 +11,9 @@
     <thead>
       <tr>
         <th>Cadet</th>
-        {% for ut in table.uniform_types %}
-          <th>{{ ut }}</th>
+        {% for item in table.uniform_items %}
+          <th>{{ item }} Size</th>
+          <th>{{ item }} Qty</th>
         {% endfor %}
       </tr>
     </thead>
@@ -25,12 +26,14 @@
             <small>{{ row.cadet.status }} | {{ row.cadet.gender }}</small>
           </td>
 
-          {% for size in row.sizes %}
-            <td>{{ size or "" }}</td>
+          {% for item in table.uniform_items %}
+            <td>{{ row["items"][item]["size"] }}</td>
+            <td>{{ row["items"][item]["qty"] }}</td>
           {% endfor %}
         </tr>
       {% endfor %}
     </tbody>
   </table>
 {% endfor %}
+
 {% endblock %}
