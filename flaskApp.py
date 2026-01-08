@@ -33,43 +33,31 @@ UPLOAD_TARGETS = {
     "inventory": "data/AllInventoryData.xlsx",
 }
 from werkzeug.utils import secure_filename
+from flask import send_file
+from flask import send_file
 
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
     if request.method == "POST":
-        file = request.files.get("file")
-        target_key = request.form.get("target")
+        print("FORM:", request.form)
 
-        if not file or not target_key:
-            return "Missing file or target", 400
+        action = request.form.get("action")
+        target = request.form.get("target")
 
-        if target_key not in UPLOAD_TARGETS:
+        if target not in UPLOAD_TARGETS:
             return "Invalid target", 400
 
-        target_path = UPLOAD_TARGETS[target_key]
+        path = UPLOAD_TARGETS[target]
 
-        # Ensure folders exist
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        if action == "download":
+            return send_file(path, as_attachment=True)
 
-        filename = secure_filename(file.filename)
-
-        # Optional: enforce Excel only
-        if not filename.lower().endswith((".xlsx", ".xls")):
-            return "Only Excel files allowed", 400
-
-        target_path = UPLOAD_TARGETS[target_key]
-
-        # Overwrite the target file
-        file.save(target_path)
-
-        return render_template(
-            "upload.html",
-            message="File uploaded successfully."
-        )
+        if action == "upload":
+            file = request.files.get("file")
+            file.save(path)
+            return render_template("upload.html", message="Uploaded")
 
     return render_template("upload.html")
-
-
 
 
 @app.route("/cadets")
