@@ -54,7 +54,7 @@ def load_cadet_excel(filepath):
 
         rows.append({
             "cadet": cadet,
-            "items": items
+            "uniforms": items
         })
 
     return {

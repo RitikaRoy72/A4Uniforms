@@ -1,39 +1,1004 @@
-{% extends "home.html" %}
-{% block title %}Cadets{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Det 520 — Cadets</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #13161d;
+      --border:   #1e2330;
+      --accent:   #4a90d9;
+      --gold:     #c8a84b;
+      --danger:   #d94a4a;
+      --success:  #4ad97a;
+      --text:     #e8ecf4;
+      --muted:    #6b7485;
+      --mono:     'IBM Plex Mono', monospace;
+      --sans:     'IBM Plex Sans', sans-serif;
+      --display:  'Bebas Neue', sans-serif;
+    }
 
-{% block content %}
-<h2>Cadet Issued Uniforms</h2>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-{% for category, table in cadet_data.items() %}
-  <h3>{{ category }}</h3>
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
 
-  <table class="table table-bordered table-sm">
-    <thead>
-      <tr>
-        <th>Cadet</th>
-        {% for item in table.uniform_items %}
-          <th>{{ item }} Size</th>
-          <th>{{ item }} Qty</th>
-        {% endfor %}
-      </tr>
-    </thead>
+    /* ── Top bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-title {
+      font-family: var(--display);
+      font-size: 1.6rem;
+      letter-spacing: 2px;
+      color: var(--gold);
+    }
+    .topbar-badge {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 4px 12px;
+      border-radius: 2px;
+      letter-spacing: 1px;
+    }
+    .badge-admin  { background: var(--gold);    color: #000; }
+    .badge-cadet  { background: var(--accent);  color: #fff; }
+    .badge-guest  { background: var(--border);  color: var(--muted); }
 
-    <tbody>
-      {% for row in table.rows %}
-        <tr>
-          <td>
-            {{ row.cadet.name }}<br>
-            <small>{{ row.cadet.status }} | {{ row.cadet.gender }}</small>
-          </td>
+    .btn-logout {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 5px 14px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 2px;
+      letter-spacing: 1px;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
 
-          {% for item in table.uniform_items %}
-            <td>{{ row["items"][item]["size"] }}</td>
-            <td>{{ row["items"][item]["qty"] }}</td>
+    /* ── Layout ── */
+    .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+
+    /* ── Login panel ── */
+    .login-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 780px;
+      margin: 0 auto 48px;
+    }
+    @media (max-width: 600px) { .login-section { grid-template-columns: 1fr; } }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 28px;
+    }
+    .login-card h2 {
+      font-family: var(--display);
+      font-size: 1.4rem;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+    }
+    .login-card.admin h2 { color: var(--gold); }
+    .login-card.cadet h2 { color: var(--accent); }
+
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 9px 12px;
+      border-radius: 3px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .field input:focus { border-color: var(--accent); }
+
+    .btn-submit {
+      width: 100%;
+      padding: 10px;
+      font-family: var(--display);
+      font-size: 1rem;
+      letter-spacing: 2px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .btn-submit:hover { opacity: .85; }
+    .btn-admin { background: var(--gold); color: #000; }
+    .btn-cadet { background: var(--accent); color: #fff; }
+
+    .error-msg {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--danger);
+      text-align: center;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* ── Section heading ── */
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .section-head h1 {
+      font-family: var(--display);
+      font-size: 2rem;
+      letter-spacing: 3px;
+    }
+    .section-head .line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; margin-bottom: 28px; border-bottom: 1px solid var(--border); }
+    .tab-btn {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 10px 22px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+    }
+    thead tr {
+      background: var(--surface);
+      border-bottom: 2px solid var(--border);
+    }
+    th {
+      padding: 10px 12px;
+      text-align: left;
+      letter-spacing: 1px;
+      color: var(--muted);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+    tbody tr:hover { background: rgba(74,144,217,.05); }
+    td { padding: 8px 12px; vertical-align: middle; }
+
+    /* Editable cells */
+    .edit-cell {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 4px 6px;
+      width: 72px;
+      border-radius: 2px;
+      transition: border-color .2s, background .2s;
+    }
+    .edit-cell:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: var(--bg);
+    }
+    .edit-cell:hover:not(:focus) { border-color: var(--border); }
+    select.edit-cell { cursor: pointer; background: var(--bg); border-color: var(--border); }
+    select.edit-cell option { background: var(--surface); color: var(--text); }
+
+    .cadet-name-cell { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .status-cell { color: var(--muted); }
+    .gender-cell { color: var(--muted); }
+
+    /* Save row button */
+    .btn-save-row {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background .2s, color .2s;
+      white-space: nowrap;
+    }
+    .btn-save-row:hover { background: var(--accent); color: #fff; }
+    .btn-save-row.saved { border-color: var(--success); color: var(--success); }
+
+    /* Request tab panel */
+    .request-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 32px;
+      max-width: 560px;
+    }
+    .request-panel h3 {
+      font-family: var(--display);
+      font-size: 1.2rem;
+      letter-spacing: 2px;
+      color: var(--gold);
+      margin-bottom: 18px;
+    }
+    .request-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .request-grid .full { grid-column: 1 / -1; }
+
+    .btn-submit-req {
+      margin-top: 4px;
+      padding: 9px 24px;
+      font-family: var(--display);
+      font-size: 1rem;
+      letter-spacing: 2px;
+      background: var(--gold);
+      color: #000;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .btn-submit-req:hover { opacity: .85; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--success);
+      color: #000;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      padding: 10px 20px;
+      border-radius: 3px;
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+
+    /* Admin seed button */
+    .admin-tools {
+      margin-bottom: 24px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn-tool {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      padding: 7px 16px;
+      background: transparent;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background .2s, color .2s;
+    }
+    .btn-tool:hover { background: var(--gold); color: #000; }
+
+    .info-bar {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <span class="topbar-title">DET 520 · UNIFORMS</span>
+  <div style="display:flex;align-items:center;gap:12px;">
+    {% if role == 'admin' %}
+      <span class="topbar-badge badge-admin">ADMIN</span>
+      <form method="POST" style="margin:0">
+        <input type="hidden" name="action" value="logout"/>
+        <button class="btn-logout" type="submit">LOGOUT</button>
+      </form>
+    {% elif role == 'cadet' %}
+      <span class="topbar-badge badge-cadet">{{ display_name }}</span>
+      <form method="POST" style="margin:0">
+        <input type="hidden" name="action" value="logout"/>
+        <button class="btn-logout" type="submit">LOGOUT</button>
+      </form>
+    {% else %}
+      <span class="topbar-badge badge-guest">NOT LOGGED IN</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── Login section (shown when not logged in) ── -->
+  {% if not role %}
+  <div class="section-head" style="margin-bottom:32px;">
+    <h1 style="color:var(--gold);">CADET PORTAL</h1>
+    <div class="line"></div>
+  </div>
+
+  <div class="login-section">
+    <!-- Cadet login -->
+    <div class="login-card cadet">
+      <h2>CADET LOGIN</h2>
+      <form method="POST">
+        <input type="hidden" name="action" value="cadet_login"/>
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" name="cadet_name" placeholder="Last Name or Full Name" required/>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" name="cadet_password" placeholder="Cadet Password" required/>
+        </div>
+        <button class="btn-submit btn-cadet" type="submit">LOGIN</button>
+      </form>
+      <p class="hint"><a href="/cadets/forgot" style="color:var(--muted);text-decoration:none;">Forgot password?</a></p>
+      {% if error and 'admin' not in error %}<p class="error-msg">{{ error }}</p>{% endif %}
+    </div>
+
+    <!-- Admin login -->
+    <div class="login-card admin">
+      <h2>ADMIN LOGIN</h2>
+      <form method="POST">
+        <input type="hidden" name="action" value="admin_login"/>
+        <div class="field">
+          <label>Username</label>
+          <input type="text" name="username" placeholder="Admin username" required/>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="Admin password" required/>
+        </div>
+        <button class="btn-submit btn-admin" type="submit">LOGIN</button>
+      </form>
+      {% if error and 'admin' in error %}<p class="error-msg">{{ error }}</p>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Cadet view (single cadet) ── -->
+  {% if role == 'cadet' and cadet_name %}
+  <div class="section-head">
+    <h1>MY UNIFORMS</h1>
+    <div class="line"></div>
+  </div>
+
+  <div class="tabs" id="cadetTabs">
+    {% for category, data in cadet_data.items() %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}"
+            onclick="switchTab('cadet','{{ category }}', this)">{{ category }}</button>
+    {% endfor %}
+    <button class="tab-btn" onclick="switchTab('cadet','request', this)" style="color:var(--gold)">REQUEST</button>
+  </div>
+
+  {% for category, data in cadet_data.items() %}
+  <div class="tab-panel {% if loop.first %}active{% endif %}" id="cadet-tab-{{ category }}">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Size</th>
+            <th>Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set cadet_key = cadet_name %}
+          {% for row in data.rows %}
+            {% if row.cadet.name and cadet_key.lower() in row.cadet.name.lower() %}
+              {% for item_name, item_data in row.uniforms.items() %}
+              <tr>
+                <td class="cadet-name-cell">{{ item_name }}</td>
+                <td>
+                  <input class="edit-cell" type="text"
+                         data-cadet="{{ row.cadet.name }}"
+                         data-category="{{ category }}"
+                         data-item="{{ item_name }}"
+                         data-field="size"
+                         value="{{ item_data.size or '' }}"/>
+                </td>
+                <td>
+                  <input class="edit-cell" type="text"
+                         data-cadet="{{ row.cadet.name }}"
+                         data-category="{{ category }}"
+                         data-item="{{ item_name }}"
+                         data-field="qty"
+                         value="{{ item_data.qty or '' }}"/>
+                </td>
+              </tr>
+              {% endfor %}
+              <tr>
+                <td colspan="3" style="padding-top:8px;">
+                  <button class="btn-save-row"
+                          onclick="saveRow('{{ row.cadet.name }}', '{{ category }}', this)">
+                    SAVE CHANGES
+                  </button>
+                </td>
+              </tr>
+            {% endif %}
           {% endfor %}
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
 
-{% endblock %}
+  <!-- Request tab panel -->
+  <div class="tab-panel" id="cadet-tab-request">
+    <div class="request-panel">
+      <h3>REQUEST UNIFORM ITEM</h3>
+      <p style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);margin-bottom:20px;">
+        Use this form to request a new or replacement uniform item.
+      </p>
+      <div class="request-grid">
+        <div class="field">
+          <label>Uniform Item</label>
+          <input class="edit-cell" style="width:100%" type="text" id="req-item" placeholder="e.g. Service Coat"/>
+        </div>
+        <div class="field">
+          <label>Size</label>
+          <input class="edit-cell" style="width:100%" type="text" id="req-size" placeholder="e.g. 38R"/>
+        </div>
+        <div class="field full">
+          <label>Reason</label>
+          <input class="edit-cell" style="width:100%" type="text" id="req-reason" placeholder="Lost, damaged, size change…"/>
+        </div>
+      </div>
+      <button class="btn-submit-req" onclick="submitRequest('{{ cadet_name }}')">
+        SUBMIT REQUEST
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+
+  <!-- ── Admin master view ── -->
+  {% if role == 'admin' %}
+  <div class="section-head">
+    <h1 style="color:var(--gold);">MASTER ROSTER</h1>
+    <div class="line"></div>
+  </div>
+
+  <div class="admin-tools">
+    <span class="info-bar">Admin mode — all rows editable. Changes write back to Excel files.</span>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;">
+    <form method="POST" action="/upload" style="margin:0">
+      <input type="hidden" name="action" value="download">
+      <input type="hidden" name="target" value="cadets_blues">
+      <button type="submit" class="btn-tool">&#8595; BLUES</button>
+    </form>
+    <form method="POST" action="/upload" style="margin:0">
+      <input type="hidden" name="action" value="download">
+      <input type="hidden" name="target" value="cadets_ocp">
+      <button type="submit" class="btn-tool">&#8595; OCP</button>
+    </form>
+    <form method="POST" action="/upload" style="margin:0">
+      <input type="hidden" name="action" value="download">
+      <input type="hidden" name="target" value="cadets_ptg">
+      <button type="submit" class="btn-tool">&#8595; PTG</button>
+    </form>
+    <form method="POST" action="/upload" style="margin:0">
+      <input type="hidden" name="action" value="download">
+      <input type="hidden" name="target" value="inventory">
+      <button type="submit" class="btn-tool" style="border-color:var(--accent);color:var(--accent);">&#8595; ALL SUPPLY DATA</button>
+    </form>
+  </div>
+
+  <div class="tabs" id="adminTabs">
+    {% for category, data in cadet_data.items() %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}"
+            onclick="switchTab('admin','{{ category }}', this)">{{ category }}</button>
+    {% endfor %}
+    <button class="tab-btn" onclick="switchTab('admin','supply', this)" style="color:var(--gold)">SUPPLY ROOM</button>
+    <button class="tab-btn" onclick="switchTab('admin','requests', this)" style="color:var(--accent)">REQUESTS</button>
+  </div>
+
+  {% for category, data in cadet_data.items() %}
+  <div class="tab-panel {% if loop.first %}active{% endif %}" id="admin-tab-{{ category }}">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Gender</th>
+            {% for item in data.uniform_items %}
+            <th>{{ item }}<br/><span style="color:var(--accent);font-size:0.6rem">SZ / QTY</span></th>
+            {% endfor %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.rows %}
+          <tr id="cadet-row-{{ category }}-{{ loop.index0 }}">
+            <td class="cadet-name-cell">{{ row.cadet.name }}</td>
+            <td>
+              <select class="edit-cell" style="width:88px;"
+                      data-cadet="{{ row.cadet.name }}"
+                      data-category="{{ category }}"
+                      data-field="status">
+                {% for yr in ['AS100','AS200','AS300','AS400'] %}
+                <option value="{{ yr }}" {% if row.cadet.status == yr %}selected{% endif %}>{{ yr }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select class="edit-cell" style="width:64px;"
+                      data-cadet="{{ row.cadet.name }}"
+                      data-category="{{ category }}"
+                      data-field="gender">
+                {% for g in ['M','F'] %}
+                <option value="{{ g }}" {% if row.cadet.gender == g %}selected{% endif %}>{{ g }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            {% for item_name in data.uniform_items %}
+              {% set item_data = row.uniforms.get(item_name, {}) %}
+              <td style="white-space:nowrap">
+                <input class="edit-cell" type="text"
+                       data-cadet="{{ row.cadet.name }}"
+                       data-category="{{ category }}"
+                       data-item="{{ item_name }}"
+                       data-field="size"
+                       value="{{ item_data.size or '' }}"/>
+                <input class="edit-cell" type="text"
+                       data-cadet="{{ row.cadet.name }}"
+                       data-category="{{ category }}"
+                       data-item="{{ item_name }}"
+                       data-field="qty"
+                       value="{{ item_data.qty or '' }}"/>
+              </td>
+            {% endfor %}
+            <td style="white-space:nowrap">
+              <button class="btn-save-row"
+                      onclick="saveRow('{{ row.cadet.name }}', '{{ category }}', this)">
+                SAVE
+              </button>
+              <button class="btn-save-row" style="border-color:var(--danger);color:var(--danger);margin-left:4px;"
+                      onclick="deleteCadet('{{ row.cadet.name }}', this)">
+                DEL
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <!-- Add cadet form -->
+    <div style="margin-top:20px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="field" style="margin:0">
+        <label style="font-family:var(--mono);font-size:0.68rem;letter-spacing:1.5px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;">Name (Last,First)</label>
+        <input class="edit-cell" style="width:180px;" type="text" id="new-cadet-name-{{ category }}" placeholder="LastName,FirstName"/>
+      </div>
+      <div class="field" style="margin:0">
+        <label style="font-family:var(--mono);font-size:0.68rem;letter-spacing:1.5px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;">Year</label>
+        <select class="edit-cell" style="width:90px;" id="new-cadet-status-{{ category }}">
+          <option>AS100</option><option>AS200</option><option>AS300</option><option>AS400</option>
+        </select>
+      </div>
+      <div class="field" style="margin:0">
+        <label style="font-family:var(--mono);font-size:0.68rem;letter-spacing:1.5px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;">Gender</label>
+        <select class="edit-cell" style="width:70px;" id="new-cadet-gender-{{ category }}">
+          <option value=""></option><option value="M">M</option><option value="F">F</option>
+        </select>
+      </div>
+      <button class="btn-save-row" style="margin-bottom:1px;"
+              onclick="addCadet('{{ category }}')">
+        + ADD CADET
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Supply room tab -->
+  <div class="tab-panel" id="admin-tab-supply">
+    {% for section in inventory_data %}
+    <div style="margin-bottom:40px;">
+      <div class="section-head" style="margin-bottom:16px;">
+        <h1 style="font-size:1.4rem;color:var(--gold);">{{ section.section }}</h1>
+        <div class="line"></div>
+      </div>
+      {% for item in section.entries %}
+      {% if item.sizes %}
+      <div style="margin-bottom:24px;">
+        <div style="font-family:var(--mono);font-size:0.75rem;letter-spacing:1.5px;
+                    color:var(--accent);text-transform:uppercase;margin-bottom:8px;">
+          {{ item.name }}
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {% if item.rows|selectattr('length')|list|length > 0 %}
+                <th>Length</th>
+                {% endif %}
+                {% for size in item.sizes %}
+                <th>{{ size }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for qty_row in item.rows %}
+              <tr>
+                {% if item.rows|selectattr('length')|list|length > 0 %}
+                <td class="status-cell">{{ qty_row.length or '—' }}</td>
+                {% endif %}
+                {% for size in item.sizes %}
+                <td>
+                  <input class="edit-cell" type="number"
+                         data-inv-section="{{ section.section }}"
+                         data-inv-item="{{ item.name }}"
+                         data-inv-length="{{ qty_row.length or '' }}"
+                         data-inv-size="{{ size }}"
+                         value="{{ qty_row.quantities.get(size, 0) }}"
+                         style="width:56px;"/>
+                </td>
+                {% endfor %}
+                <td>
+                  <button class="btn-save-row"
+                          onclick="saveInventoryRow(this)">SAVE</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Requests tab -->
+  <div class="tab-panel" id="admin-tab-requests">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <span class="info-bar">Pending uniform requests — press Resolve to remove an entry.</span>
+    </div>
+    {% if requests %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Cadet</th>
+            <th>Item</th>
+            <th>Size</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="requests-tbody">
+          {% for req in requests %}
+          <tr id="req-row-{{ loop.index0 }}">
+            <td class="status-cell" style="white-space:nowrap;font-size:0.7rem;">{{ req.timestamp[:16].replace('T',' ') }}</td>
+            <td class="cadet-name-cell">
+              {% if req.cadet_name %}
+                {{ req.cadet_name }}
+              {% else %}
+                {{ req.first_name }} {{ req.last_name }}
+              {% endif %}
+            </td>
+            <td>{{ req.uniform_item }}</td>
+            <td>{{ req.size }}</td>
+            <td style="max-width:200px;font-size:0.75rem;color:var(--muted);">{{ req.reason }}</td>
+            <td>
+              <span style="font-family:var(--mono);font-size:0.68rem;
+                           padding:3px 8px;border-radius:2px;
+                           background:rgba(200,168,75,.15);color:var(--gold);">
+                {{ req.status }}
+              </span>
+            </td>
+            <td>
+              <button class="btn-save-row"
+                      style="border-color:var(--success);color:var(--success);"
+                      onclick="resolveRequest({{ loop.index0 }}, this)">
+                RESOLVE
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="info-bar" style="text-align:center;padding:32px;">
+      No pending requests.
+    </div>
+    {% endif %}
+  </div>
+
+  {% endif %}
+
+</div><!-- /container -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(prefix, category, btn) {
+    document.querySelectorAll(`#${prefix}Tabs .tab-btn`).forEach(b => b.classList.remove('active'));
+    document.querySelectorAll(`[id^="${prefix}-tab-"]`).forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`${prefix}-tab-${category}`).classList.add('active');
+  }
+
+  // ── Save a cadet row ───────────────────────────────────────────────────────
+  function saveRow(cadetName, category, btn) {
+    const cells = document.querySelectorAll(
+      `.edit-cell[data-cadet="${cadetName}"][data-category="${category}"]`
+    );
+
+    // Separate uniform edits from field updates (status/gender)
+    const itemMap = {};
+    const fieldUpdates = [];
+    cells.forEach(c => {
+      const field = c.dataset.field;
+      if (field === 'status' || field === 'gender') {
+        fieldUpdates.push({ name: cadetName, category, field, value: c.value });
+      } else if (c.dataset.item) {
+        const item = c.dataset.item;
+        if (!itemMap[item]) itemMap[item] = { item, size: '', qty: '' };
+        itemMap[item][field] = c.value;
+      }
+    });
+
+    const saves = [];
+
+    // Save uniform sizes/qtys
+    if (Object.keys(itemMap).length > 0) {
+      saves.push(
+        fetch('/cadets/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cadet_name: cadetName, category, items: Object.values(itemMap) })
+        }).then(r => r.json())
+      );
+    }
+
+    // Save field updates (status/gender) — triggers re-sort
+    fieldUpdates.forEach(u => {
+      saves.push(
+        fetch('/cadets/update-field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(u)
+        }).then(r => r.json())
+      );
+    });
+
+    Promise.all(saves).then(results => {
+      const hasFieldUpdate = fieldUpdates.length > 0;
+      const allOk = results.every(r => r.ok);
+      if (allOk) {
+        btn.textContent = 'SAVED ✓';
+        btn.classList.add('saved');
+        if (hasFieldUpdate) {
+          showToast('Saved & re-sorted. Reloading...');
+          setTimeout(() => location.reload(), 1200);
+        } else {
+          showToast('Changes saved.');
+          setTimeout(() => { btn.textContent = 'SAVE'; btn.classList.remove('saved'); }, 2500);
+        }
+      } else {
+        showToast('Error: ' + (results.find(r => !r.ok)?.error || 'unknown'), true);
+      }
+    }).catch(() => showToast('Network error.', true));
+  }
+
+  // ── Submit uniform request ─────────────────────────────────────────────────
+  function submitRequest(cadetName) {
+    const item   = document.getElementById('req-item').value.trim();
+    const size   = document.getElementById('req-size').value.trim();
+    const reason = document.getElementById('req-reason').value.trim();
+
+    if (!item) { showToast('Please enter a uniform item.', true); return; }
+
+    fetch('/cadets/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cadet_name: cadetName, uniform_item: item, size, reason })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        showToast('Request submitted!');
+        document.getElementById('req-item').value   = '';
+        document.getElementById('req-size').value   = '';
+        document.getElementById('req-reason').value = '';
+      } else {
+        showToast('Error: ' + data.error, true);
+      }
+    });
+  }
+
+  // ── Seed passwords (admin) ─────────────────────────────────────────────────
+  function seedPasswords() {
+    fetch('/admin/seed-passwords', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) showToast(`Seeded ${data.seeded} cadet password(s).`);
+      else         showToast('Error seeding passwords.', true);
+    });
+  }
+
+  // -- Resolve request ----------------------------------------
+  function resolveRequest(index, btn) {
+    btn.disabled = true;
+    btn.textContent = '...';
+    fetch('/cadets/requests/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const row = document.getElementById('req-row-' + index);
+        row.style.transition = 'opacity .3s';
+        row.style.opacity = '0';
+        setTimeout(() => {
+          row.remove();
+          const tbody = document.getElementById('requests-tbody');
+          if (tbody && tbody.children.length === 0) {
+            tbody.closest('.table-wrap').innerHTML =
+              '<div class="info-bar" style="text-align:center;padding:32px;">No pending requests.</div>';
+          }
+        }, 300);
+        showToast('Request resolved.');
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'RESOLVE';
+        showToast('Error: ' + data.error, true);
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'RESOLVE';
+      showToast('Network error.', true);
+    });
+  }
+
+  // ── Add cadet ──────────────────────────────────────────────────────────────
+  function addCadet(category) {
+    const name   = document.getElementById(`new-cadet-name-${category}`).value.trim();
+    const status = document.getElementById(`new-cadet-status-${category}`).value;
+    const gender = document.getElementById(`new-cadet-gender-${category}`).value;
+    if (!name) { showToast('Enter a cadet name.', true); return; }
+    fetch('/cadets/add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name, status, gender, category })
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) { showToast(d.name + ' added.' + (d.warning || '') + ' Reloading...'); setTimeout(() => location.reload(), 1200); }
+      else       { showToast('Error: ' + d.error, true); }
+    });
+  }
+
+  // ── Delete cadet ────────────────────────────────────────────────────────────
+  function deleteCadet(name, btn) {
+    if (!confirm('Delete ' + name + ' from all sheets? This cannot be undone.')) return;
+    btn.disabled = true;
+    fetch('/cadets/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name })
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) { showToast(name + ' deleted. Reloading...'); setTimeout(() => location.reload(), 1200); }
+      else       { btn.disabled = false; showToast('Error: ' + d.error, true); }
+    });
+  }
+
+  // -- Save inventory row
+  function saveInventoryRow(btn) {
+    const row = btn.closest('tr');
+    const cells = row.querySelectorAll('.edit-cell[data-inv-section]');
+    const promises = [];
+
+    cells.forEach(cell => {
+      promises.push(
+        fetch('/cadets/inventory/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            section: cell.dataset.invSection,
+            item:    cell.dataset.invItem,
+            length:  cell.dataset.invLength || null,
+            size:    cell.dataset.invSize,
+            value:   cell.value === '' ? null : Number(cell.value)
+          })
+        }).then(r => r.json())
+      );
+    });
+
+    Promise.all(promises).then(results => {
+      const ok = results.every(r => r.ok);
+      if (ok) {
+        btn.textContent = 'SAVED ✓';
+        btn.classList.add('saved');
+        showToast('Inventory updated.');
+        setTimeout(() => { btn.textContent = 'SAVE'; btn.classList.remove('saved'); }, 2500);
+      } else {
+        showToast('Save failed: ' + (results.find(r => !r.ok)?.error || 'unknown'), true);
+      }
+    });
+  }
+
+  // ── Toast helper ──────────────────────────────────────────────────────────
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = isError ? 'var(--danger)' : 'var(--success)';
+    t.style.color = isError ? '#fff' : '#000';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+</script>
+</body>
+</html>

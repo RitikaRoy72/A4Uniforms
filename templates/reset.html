@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Det 520 — New Password</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0d0f14; --surface: #13161d; --border: #1e2330;
+      --accent: #4a90d9; --gold: #c8a84b; --danger: #d94a4a; --success: #4ad97a;
+      --text: #e8ecf4; --muted: #6b7485;
+      --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+      --display: 'Bebas Neue', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--sans);
+           min-height: 100vh; display: flex; flex-direction: column;
+           align-items: center; justify-content: center; padding: 24px; }
+
+    .card { background: var(--surface); border: 1px solid var(--border);
+            border-radius: 6px; padding: 40px; width: 100%; max-width: 420px; }
+    .logo { font-family: var(--display); font-size: 1.5rem; letter-spacing: 3px;
+            color: var(--gold); margin-bottom: 6px; }
+    h1 { font-family: var(--display); font-size: 1.8rem; letter-spacing: 2px;
+         color: var(--accent); margin-bottom: 8px; }
+    .subtitle { font-family: var(--mono); font-size: 0.75rem; color: var(--muted);
+                margin-bottom: 28px; line-height: 1.6; }
+
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-family: var(--mono); font-size: 0.68rem;
+                   letter-spacing: 1.5px; color: var(--muted); margin-bottom: 5px;
+                   text-transform: uppercase; }
+    .field input { width: 100%; background: var(--bg); border: 1px solid var(--border);
+                   color: var(--text); font-family: var(--mono); font-size: 0.85rem;
+                   padding: 10px 12px; border-radius: 3px; outline: none;
+                   transition: border-color .2s; }
+    .field input:focus { border-color: var(--accent); }
+
+    .btn { width: 100%; padding: 12px; font-family: var(--display); font-size: 1.1rem;
+           letter-spacing: 2px; background: var(--accent); color: #fff; border: none;
+           border-radius: 3px; cursor: pointer; margin-top: 8px; transition: opacity .2s; }
+    .btn:hover { opacity: .85; }
+    .btn-danger { background: var(--danger); }
+
+    .error { background: rgba(217,74,74,.12); border: 1px solid var(--danger);
+             color: var(--danger); font-family: var(--mono); font-size: 0.75rem;
+             padding: 10px 14px; border-radius: 3px; margin-bottom: 18px; }
+    .expired-msg { font-family: var(--mono); font-size: 0.8rem; color: var(--muted);
+                   line-height: 1.6; margin-bottom: 20px; }
+
+    .back-link { margin-top: 20px; text-align: center; font-family: var(--mono);
+                 font-size: 0.72rem; }
+    .back-link a { color: var(--muted); text-decoration: none; }
+    .back-link a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">DET 520 · UNIFORMS</div>
+
+    {% if expired %}
+      <h1 style="color:var(--danger)">LINK EXPIRED</h1>
+      <p class="expired-msg">
+        This reset link is invalid or has already been used.<br/>
+        Please request a new one.
+      </p>
+      <a href="/cadets/forgot"><button class="btn btn-danger">REQUEST NEW LINK</button></a>
+
+    {% else %}
+      <h1>NEW PASSWORD</h1>
+      <p class="subtitle">
+        Setting new password for <strong style="color:var(--text)">{{ display_name }}</strong>.
+      </p>
+
+      {% if error %}
+      <div class="error">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST">
+        <div class="field">
+          <label>New Password</label>
+          <input type="password" name="password" placeholder="Min. 8 characters" required autofocus/>
+        </div>
+        <div class="field">
+          <label>Confirm New Password</label>
+          <input type="password" name="confirm" placeholder="Re-enter password" required/>
+        </div>
+        <button class="btn" type="submit">SET NEW PASSWORD</button>
+      </form>
+    {% endif %}
+
+    <div class="back-link"><a href="/cadets">← Back to login</a></div>
+  </div>
+</body>
+</html>
