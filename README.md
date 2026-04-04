@@ -99,7 +99,7 @@ A4Uniforms/
 Full log: https://docs.google.com/document/d/1XySOlcomjNhRcHuvFETMcPWZkMtwsbMxRUwVOSrEWCE/edit?tab=t.0
 
 ### March 28 - Apr 3, 2026
-Estimated Total Time: 4 hours
+Estimated Total Time: 20 hours
 
 **Goal 1: Complete UI redesign**
 - Replaced all static displays with a dark tactical UI (IBM Plex Mono/Sans, Bebas Neue)
