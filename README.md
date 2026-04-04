@@ -32,7 +32,7 @@ A4Uniforms is designed to streamline and modernize the management of uniform inv
 |---|---|---|
 | `SECRET_KEY` | Flask session secret | `dev-secret-change-in-prod` |
 | `ADMIN_USERNAME` | Admin login username | `admin` |
-| `ADMIN_PASSWORD` | Admin login password | `det520admin` |
+| `ADMIN_PASSWORD` | Admin login password | `` |
 
 > **Note:** Always set `ADMIN_PASSWORD` via environment variable before deploying to production.
 
