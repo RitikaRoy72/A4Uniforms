@@ -32,7 +32,7 @@ A4Uniforms is designed to streamline and modernize the management of uniform inv
 |---|---|---|
 | `SECRET_KEY` | Flask session secret | `dev-secret-change-in-prod` |
 | `ADMIN_USERNAME` | Admin login username | `admin` |
-| `ADMIN_PASSWORD` | Admin login password | `det520admin` |
+| `ADMIN_PASSWORD` | Admin login password | `` |
 
 > **Note:** Always set `ADMIN_PASSWORD` via environment variable before deploying to production.
 
@@ -99,7 +99,7 @@ A4Uniforms/
 Full log: https://docs.google.com/document/d/1XySOlcomjNhRcHuvFETMcPWZkMtwsbMxRUwVOSrEWCE/edit?tab=t.0
 
 ### March 28 - Apr 3, 2026
-Estimated Total Time: 4 hours
+Estimated Total Time: 20 hours
 
 **Goal 1: Complete UI redesign**
 - Replaced all static displays with a dark tactical UI (IBM Plex Mono/Sans, Bebas Neue)
