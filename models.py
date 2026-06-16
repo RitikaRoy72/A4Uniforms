@@ -49,3 +49,27 @@ class UniformRequest(db.Model):
     size = db.Column(db.String)
     reason = db.Column(db.String)
     status = db.Column(db.String, default="PENDING")
+
+
+class PendingEdit(db.Model):
+    """
+    A uniform-data change proposed by a SubAdmin, awaiting Admin approval.
+
+    On approval  → the Flask route applies the edit to the Excel file.
+    On denial    → this row is simply deleted.
+    On direct Admin save of the same cell → this row is auto-deleted (stale).
+    """
+    id              = db.Column(db.Integer, primary_key=True)
+    # Excel key of the cadet being edited (e.g. "allen,michael")
+    cadet_name      = db.Column(db.String, nullable=False)
+    # Blues / OCP / PTG
+    category        = db.Column(db.String, nullable=False)
+    # Uniform item name exactly as it appears in the Excel header
+    item            = db.Column(db.String, nullable=False)
+    proposed_size   = db.Column(db.String, nullable=True)
+    proposed_qty    = db.Column(db.String, nullable=True)
+    # Excel key of the SubAdmin who proposed this edit
+    proposed_by     = db.Column(db.String, nullable=False)
+    # PENDING / APPROVED / DENIED
+    status          = db.Column(db.String, default="PENDING", nullable=False)
+    created_at      = db.Column(db.DateTime, default=__import__("datetime").datetime.utcnow)

@@ -3,8 +3,8 @@ auth.py — Cadet authentication helpers.
 
 Passwords are stored in data/cadet_passwords.json as:
 {
-  "allen,michael": {
-      "email": "michael.allen@example.com",
+  "roy,ritika": {
+      "email": "rr837@cornell.edu",
       "password_hash": "<werkzeug hash>",
       "reset_token": "<hex token or null>",
       "reset_expires": "<ISO timestamp or null>"
@@ -13,7 +13,7 @@ Passwords are stored in data/cadet_passwords.json as:
 }
 
 The key is the cadet name exactly as it appears in the Excel file,
-lowercased (e.g. "allen,michael").
+lowercased (e.g. "roy,ritika").
 """
 
 import json
@@ -43,7 +43,7 @@ def _save(data: dict):
 
 
 def _key(name: str) -> str:
-    """Normalise Excel name like 'Allen,Michael' → 'allen,michael'."""
+    """Normalise Excel name like 'Roy,Ritika' → 'roy,ritika'."""
     return name.strip().lower()
 
 
@@ -135,5 +135,35 @@ def apply_reset(token: str, new_password: str) -> bool:
     data[key]["password_hash"] = generate_password_hash(new_password)
     data[key]["reset_token"] = None
     data[key]["reset_expires"] = None
+    _save(data)
+    return True
+
+
+# ── Role management ───────────────────────────────────────────────────────────
+
+def get_role(name: str) -> str:
+    """
+    Return the role for a registered cadet.
+    Possible values: 'cadet' (default) or 'subadmin'.
+    Returns 'cadet' if the entry doesn't exist or has no role set.
+    """
+    entry = _load().get(_key(name))
+    if not entry:
+        return "cadet"
+    return entry.get("role", "cadet")
+
+
+def set_role(name: str, role: str) -> bool:
+    """
+    Set the role for a registered cadet. role must be 'cadet' or 'subadmin'.
+    Returns False if the cadet is not found.
+    """
+    if role not in ("cadet", "subadmin"):
+        raise ValueError(f"Invalid role: {role!r}. Must be 'cadet' or 'subadmin'.")
+    data = _load()
+    k = _key(name)
+    if k not in data:
+        return False
+    data[k]["role"] = role
     _save(data)
     return True

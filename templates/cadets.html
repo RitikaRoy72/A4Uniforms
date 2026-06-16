@@ -8,7 +8,7 @@
   <style>
     :root {
       --bg:       #0d0f14;
-      --surface:  rgba(0, 0, 0, 0.5);
+      --surface:  #1e2330;
       --border:   #1e2330;
       --accent:   #4a90d9;
       --gold:     #c8a84b;
@@ -347,6 +347,37 @@
       border: 1px solid var(--border);
       border-radius: 3px;
     }
+
+    /* SubAdmin role */
+    .badge-subadmin { background: #3d2e6b; color: #b89aff; }
+
+    /* Ghost-text overlay for pending proposed edits */
+    .ghost-wrap { display: inline-block; }
+    .ghost-val {
+      display: block;
+      font-size: 0.65rem;
+      font-style: italic;
+      color: #b89aff;
+      opacity: 0.8;
+      white-space: nowrap;
+      margin-top: 1px;
+    }
+    .ghost-val::before { content: '→ '; }
+
+    /* Role toggle badge button */
+    .role-badge-btn {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.8px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: opacity .2s;
+    }
+    .role-badge-btn:hover { opacity: 0.75; }
+    .role-badge-cadet   { background: rgba(74,144,217,.15); color: var(--accent); border-color: var(--accent); }
+    .role-badge-subadmin { background: #3d2e6b; color: #b89aff; border-color: #b89aff; }
   </style>
 </head>
 <body>
@@ -357,6 +388,12 @@
   <div style="display:flex;align-items:center;gap:12px;">
     {% if role == 'admin' %}
       <span class="topbar-badge badge-admin">ADMIN</span>
+      <form method="POST" style="margin:0">
+        <input type="hidden" name="action" value="logout"/>
+        <button class="btn-logout" type="submit">LOGOUT</button>
+      </form>
+    {% elif role == 'subadmin' %}
+      <span class="topbar-badge badge-subadmin">SUBADMIN · {{ display_name }}</span>
       <form method="POST" style="margin:0">
         <input type="hidden" name="action" value="logout"/>
         <button class="btn-logout" type="submit">LOGOUT</button>
@@ -518,6 +555,123 @@
   {% endif %}
 
 
+  <!-- ── SubAdmin view (full roster, propose-only for other cadets) ── -->
+  {% if role == 'subadmin' %}
+  <div class="section-head">
+    <h1 style="color:#b89aff;">FULL ROSTER</h1>
+    <div class="line"></div>
+  </div>
+  <div class="admin-tools">
+    <span class="info-bar" style="border-color:#3d2e6b;">SubAdmin mode — your edits are submitted for Admin approval and shown in <span style="color:#b89aff;font-style:italic;">purple ghost text</span> until approved.</span>
+  </div>
+
+  <div class="tabs" id="subadminTabs">
+    {% for category, data in cadet_data.items() %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}"
+            onclick="switchTab('subadmin','{{ category }}', this)">{{ category }}</button>
+    {% endfor %}
+    <button class="tab-btn" onclick="switchTab('subadmin','request', this)" style="color:var(--gold)">REQUEST</button>
+  </div>
+
+  {% for category, data in cadet_data.items() %}
+  <div class="tab-panel {% if loop.first %}active{% endif %}" id="subadmin-tab-{{ category }}">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Gender</th>
+            {% for item in data.uniform_items %}
+            <th>{{ item }}<br/><span style="color:var(--accent);font-size:0.6rem">SZ / QTY</span></th>
+            {% endfor %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.rows %}
+          {% set is_own = cadet_name and cadet_name.lower() == row.cadet.name.lower() %}
+          <tr>
+            <td class="cadet-name-cell">{{ row.cadet.name }}</td>
+            <td class="status-cell">{{ row.cadet.status }}</td>
+            <td class="gender-cell">{{ row.cadet.gender }}</td>
+            {% for item_name in data.uniform_items %}
+              {% set item_data = row.uniforms.get(item_name, {}) %}
+              {% set ghost = pending_edits.get((row.cadet.name.lower(), category, item_name)) %}
+              <td style="white-space:nowrap">
+                <div class="ghost-wrap">
+                  <input class="edit-cell" type="text"
+                         data-cadet="{{ row.cadet.name }}"
+                         data-category="{{ category }}"
+                         data-item="{{ item_name }}"
+                         data-field="size"
+                         value="{{ item_data.size or '' }}"/>
+                  {% if ghost and ghost.proposed_size is not none %}
+                  <span class="ghost-val" title="Proposed by {{ ghost.proposed_by }}">{{ ghost.proposed_size }}</span>
+                  {% endif %}
+                </div>
+                <div class="ghost-wrap">
+                  <input class="edit-cell" type="text"
+                         data-cadet="{{ row.cadet.name }}"
+                         data-category="{{ category }}"
+                         data-item="{{ item_name }}"
+                         data-field="qty"
+                         value="{{ item_data.qty or '' }}"/>
+                  {% if ghost and ghost.proposed_qty is not none %}
+                  <span class="ghost-val" title="Proposed by {{ ghost.proposed_by }}">{{ ghost.proposed_qty }}</span>
+                  {% endif %}
+                </div>
+              </td>
+            {% endfor %}
+            <td style="white-space:nowrap">
+              {% if is_own %}
+              <button class="btn-save-row"
+                      onclick="saveRow('{{ row.cadet.name }}', '{{ category }}', this)">
+                SAVE
+              </button>
+              {% else %}
+              <button class="btn-save-row" style="border-color:#b89aff;color:#b89aff;"
+                      onclick="proposeRow('{{ row.cadet.name }}', '{{ category }}', this)">
+                PROPOSE
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- SubAdmin request tab -->
+  <div class="tab-panel" id="subadmin-tab-request">
+    <div class="request-panel">
+      <h3>REQUEST UNIFORM ITEM</h3>
+      <p style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);margin-bottom:20px;">
+        Use this form to request a new or replacement uniform item.
+      </p>
+      <div class="request-grid">
+        <div class="field">
+          <label>Uniform Item</label>
+          <input class="edit-cell" style="width:100%" type="text" id="sub-req-item" placeholder="e.g. Service Coat"/>
+        </div>
+        <div class="field">
+          <label>Size</label>
+          <input class="edit-cell" style="width:100%" type="text" id="sub-req-size" placeholder="e.g. 38R"/>
+        </div>
+        <div class="field full">
+          <label>Reason</label>
+          <input class="edit-cell" style="width:100%" type="text" id="sub-req-reason" placeholder="Lost, damaged, size change…"/>
+        </div>
+      </div>
+      <button class="btn-submit-req" onclick="submitRequest('{{ cadet_name }}', 'sub')">
+        SUBMIT REQUEST
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- ── Admin master view ── -->
   {% if role == 'admin' %}
   <div class="section-head">
@@ -559,6 +713,7 @@
     {% endfor %}
     <button class="tab-btn" onclick="switchTab('admin','supply', this)" style="color:var(--gold)">SUPPLY ROOM</button>
     <button class="tab-btn" onclick="switchTab('admin','requests', this)" style="color:var(--accent)">REQUESTS</button>
+    <button class="tab-btn" onclick="switchTab('admin','pending', this)" style="color:#b89aff">PENDING EDITS</button>
   </div>
 
   {% for category, data in cadet_data.items() %}
@@ -602,19 +757,30 @@
             </td>
             {% for item_name in data.uniform_items %}
               {% set item_data = row.uniforms.get(item_name, {}) %}
+              {% set ghost = pending_edits.get((row.cadet.name.lower(), category, item_name)) %}
               <td style="white-space:nowrap">
-                <input class="edit-cell" type="text"
-                       data-cadet="{{ row.cadet.name }}"
-                       data-category="{{ category }}"
-                       data-item="{{ item_name }}"
-                       data-field="size"
-                       value="{{ item_data.size or '' }}"/>
-                <input class="edit-cell" type="text"
-                       data-cadet="{{ row.cadet.name }}"
-                       data-category="{{ category }}"
-                       data-item="{{ item_name }}"
-                       data-field="qty"
-                       value="{{ item_data.qty or '' }}"/>
+                <div class="ghost-wrap">
+                  <input class="edit-cell" type="text"
+                         data-cadet="{{ row.cadet.name }}"
+                         data-category="{{ category }}"
+                         data-item="{{ item_name }}"
+                         data-field="size"
+                         value="{{ item_data.size or '' }}"/>
+                  {% if ghost and ghost.proposed_size is not none %}
+                  <span class="ghost-val" title="Proposed by {{ ghost.proposed_by }}">{{ ghost.proposed_size }}</span>
+                  {% endif %}
+                </div>
+                <div class="ghost-wrap">
+                  <input class="edit-cell" type="text"
+                         data-cadet="{{ row.cadet.name }}"
+                         data-category="{{ category }}"
+                         data-item="{{ item_name }}"
+                         data-field="qty"
+                         value="{{ item_data.qty or '' }}"/>
+                  {% if ghost and ghost.proposed_qty is not none %}
+                  <span class="ghost-val" title="Proposed by {{ ghost.proposed_by }}">{{ ghost.proposed_qty }}</span>
+                  {% endif %}
+                </div>
               </td>
             {% endfor %}
             <td style="white-space:nowrap">
@@ -625,6 +791,13 @@
               <button class="btn-save-row" style="border-color:var(--danger);color:var(--danger);margin-left:4px;"
                       onclick="deleteCadet('{{ row.cadet.name }}', this)">
                 DEL
+              </button>
+
+              {% set crow = cadet_roles.get(row.cadet.name.lower(), 'cadet') %}
+              <button class="role-badge-btn role-badge-{{ crow }}" style="margin-left:4px;"
+                      data-name="{{ row.cadet.name }}"
+                      onclick="toggleRole('{{ row.cadet.name }}', this)">
+                {{ crow | upper }}
               </button>
             </td>
           </tr>
@@ -777,6 +950,34 @@
     {% endif %}
   </div>
 
+  <!-- Pending edits tab (SubAdmin proposals awaiting approval) -->
+  <div class="tab-panel" id="admin-tab-pending">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <span class="info-bar" style="border-color:#3d2e6b;">SubAdmin proposed edits — approve to commit to Excel, or deny to discard.</span>
+      <button class="btn-save-row" style="border-color:#b89aff;color:#b89aff;margin-left:12px;" onclick="loadPendingEdits()">↺ RELOAD</button>
+
+    </div>
+    <div class="table-wrap">
+      <table id="pending-edits-table">
+        <thead>
+          <tr>
+            <th>Cadet</th>
+            <th>Category</th>
+            <th>Item</th>
+            <th>Proposed Size</th>
+            <th>Proposed Qty</th>
+            <th>Proposed By</th>
+            <th>Time</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="pending-edits-tbody">
+          <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   {% endif %}
 
 </div><!-- /container -->
@@ -856,10 +1057,11 @@
   }
 
   // ── Submit uniform request ─────────────────────────────────────────────────
-  function submitRequest(cadetName) {
-    const item   = document.getElementById('req-item').value.trim();
-    const size   = document.getElementById('req-size').value.trim();
-    const reason = document.getElementById('req-reason').value.trim();
+  function submitRequest(cadetName, prefix) {
+    prefix = prefix || '';
+    const item   = document.getElementById((prefix ? prefix + '-' : '') + 'req-item').value.trim();
+    const size   = document.getElementById((prefix ? prefix + '-' : '') + 'req-size').value.trim();
+    const reason = document.getElementById((prefix ? prefix + '-' : '') + 'req-reason').value.trim();
 
     if (!item) { showToast('Please enter a uniform item.', true); return; }
 
@@ -872,9 +1074,9 @@
     .then(data => {
       if (data.ok) {
         showToast('Request submitted!');
-        document.getElementById('req-item').value   = '';
-        document.getElementById('req-size').value   = '';
-        document.getElementById('req-reason').value = '';
+        document.getElementById((prefix ? prefix + '-' : '') + 'req-item').value   = '';
+        document.getElementById((prefix ? prefix + '-' : '') + 'req-size').value   = '';
+        document.getElementById((prefix ? prefix + '-' : '') + 'req-reason').value = '';
       } else {
         showToast('Error: ' + data.error, true);
       }
@@ -940,8 +1142,13 @@
       body: JSON.stringify({ name, status, gender, category })
     })
     .then(r => r.json())
+    
     .then(d => {
-      if (d.ok) { showToast(d.name + ' added.' + (d.warning || '') + ' Reloading...'); setTimeout(() => location.reload(), 1200); }
+      if (d.ok) {
+        //showToast(`${name} is now ${newRole}.`);
+        setTimeout(() => location.reload(), 800);  // ← add this
+      }
+      //if (d.ok) { showToast(d.name + ' added.' + (d.warning || '') + ' Reloading...'); setTimeout(() => location.reload(), 1200); }
       else       { showToast('Error: ' + d.error, true); }
     });
   }
@@ -996,6 +1203,133 @@
       }
     });
   }
+
+  // ── SubAdmin: propose an edit for another cadet ───────────────────────────
+  function proposeRow(cadetName, category, btn) {
+    const cells = document.querySelectorAll(
+      `.edit-cell[data-cadet="${cadetName}"][data-category="${category}"]`
+    );
+    const itemMap = {};
+    cells.forEach(c => {
+      if (c.dataset.item && c.dataset.field !== 'status' && c.dataset.field !== 'gender') {
+        const item = c.dataset.item;
+        if (!itemMap[item]) itemMap[item] = { item, size: '', qty: '' };
+        itemMap[item][c.dataset.field] = c.value;
+      }
+    });
+
+    if (Object.keys(itemMap).length === 0) { showToast('No changes to propose.', true); return; }
+
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    fetch('/cadets/propose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cadet_name: cadetName, category, items: Object.values(itemMap) })
+    })
+    .then(r => r.json())
+    .then(d => {
+      btn.disabled = false;
+      if (d.ok) {
+        btn.textContent = 'PROPOSED ✓';
+        btn.classList.add('saved');
+        showToast('Edit submitted for Admin approval.');
+        setTimeout(() => { btn.textContent = 'PROPOSE'; btn.classList.remove('saved'); }, 2500);
+      } else {
+        btn.textContent = 'PROPOSE';
+        showToast('Error: ' + d.error, true);
+      }
+    })
+    .catch(() => { btn.disabled = false; btn.textContent = 'PROPOSE'; showToast('Network error.', true); });
+  }
+
+  // ── Admin: toggle a cadet's role between cadet / subadmin ─────────────────
+  function toggleRole(name, btn) {
+    const current = btn.textContent.trim().toLowerCase();
+    const newRole = current === 'cadet' ? 'subadmin' : 'cadet';
+    if (!confirm(`Set ${name} as ${newRole.toUpperCase()}?`)) return;
+
+    fetch('/cadets/set-role', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, role: newRole })
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        btn.textContent = newRole.toUpperCase();
+        btn.className = 'role-badge-btn role-badge-' + newRole;
+        showToast(`${name} is now ${newRole}.`);
+      } else {
+        showToast('Error: ' + (d.error || 'Could not set role. Is this cadet registered?'), true);
+      }
+    });
+  }
+
+  // ── Admin: load pending edits table ───────────────────────────────────────
+  function loadPendingEdits() {
+    fetch('/cadets/pending')
+      .then(r => r.json())
+      .then(d => {
+        const tbody = document.getElementById('pending-edits-tbody');
+        if (!tbody) return;
+        if (!d.ok || !d.edits.length) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">No pending edits.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = d.edits.map((e, i) => `
+          <tr id="pe-row-${e.id}">
+            <td class="cadet-name-cell">${e.cadet_name}</td>
+            <td class="status-cell">${e.category}</td>
+            <td>${e.item}</td>
+            <td style="color:#b89aff;font-style:italic;">${e.proposed_size ?? '—'}</td>
+            <td style="color:#b89aff;font-style:italic;">${e.proposed_qty ?? '—'}</td>
+            <td class="status-cell">${e.proposed_by}</td>
+            <td class="status-cell" style="font-size:0.7rem;">${(e.created_at||'').slice(0,16).replace('T',' ')}</td>
+            <td style="white-space:nowrap;">
+              <button class="btn-save-row" style="border-color:var(--success);color:var(--success);"
+                      onclick="resolvePendingEdit(${e.id},'approve',this)">APPROVE</button>
+              <button class="btn-save-row" style="border-color:var(--danger);color:var(--danger);margin-left:4px;"
+                      onclick="resolvePendingEdit(${e.id},'deny',this)">DENY</button>
+            </td>
+          </tr>`).join('');
+      })
+      .catch(() => {
+        const tbody = document.getElementById('pending-edits-tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:24px;">Failed to load.</td></tr>';
+      });
+  }
+
+  function resolvePendingEdit(id, action, btn) {
+    btn.disabled = true;
+    btn.textContent = '...';
+    fetch('/cadets/pending/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action })
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        const row = document.getElementById('pe-row-' + id);
+        if (row) { row.style.opacity = '0'; row.style.transition = 'opacity .3s'; setTimeout(() => row.remove(), 300); }
+        showToast(action === 'approve' ? 'Edit approved & applied to Excel.' : 'Edit denied.');
+        //if (action === 'approve') setTimeout(() => location.reload(), 1400);
+      } else {
+        btn.disabled = false;
+        btn.textContent = action === 'approve' ? 'APPROVE' : 'DENY';
+        showToast('Error: ' + d.error, true);
+      }
+    })
+    .catch(() => { btn.disabled = false; btn.textContent = action === 'approve' ? 'APPROVE' : 'DENY'; showToast('Network error.', true); });
+  }
+
+  // Load pending edits when the tab becomes visible
+  document.addEventListener('DOMContentLoaded', () => {
+    const pendingTab = document.querySelector('[onclick*="pending"]');
+    if (pendingTab) pendingTab.addEventListener('click', loadPendingEdits);
+  });
 
   // ── Toast helper ──────────────────────────────────────────────────────────
   function showToast(msg, isError = false) {

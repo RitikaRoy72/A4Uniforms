@@ -1,6 +1,6 @@
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, jsonify)
-from models import db, Cadet, IssuedUniform, SupplyInventory, UniformRequest, UniformType
+from models import db, Cadet, IssuedUniform, SupplyInventory, UniformRequest, UniformType, PendingEdit
 import os, csv
 from datetime import datetime
 from excel_parsers import load_cadet_excel, clean_uniform_name
@@ -35,6 +35,12 @@ os.makedirs("data", exist_ok=True)
 
 def is_admin():
     return session.get("role") == "admin"
+
+def is_subadmin():
+    return session.get("role") == "subadmin"
+
+def can_view_all():
+    return session.get("role") in ("admin", "subadmin")
 
 def current_cadet_name():
     return session.get("cadet_name")
@@ -147,7 +153,7 @@ def cadet():
             elif not auth.verify(excel_key, pwd):
                 error = "Incorrect password."
             else:
-                session["role"] = "cadet"
+                session["role"] = auth.get_role(excel_key)  # 'cadet' or 'subadmin'
                 session["cadet_name"] = excel_key
                 return redirect(url_for("cadet"))
 
@@ -178,14 +184,32 @@ def cadet():
         with open(REQUESTS_FILE, newline="", encoding="utf-8") as f:
             pending_requests = list(csv.DictReader(f))
 
+    # Build a lookup of pending edits keyed by (cadet_name, category, item)
+    # so the template can render ghost-text overlays.
+    pending_edits = {}
+    if can_view_all():
+        for pe in PendingEdit.query.filter_by(status="PENDING").all():
+            pending_edits[(pe.cadet_name.lower(), pe.category, pe.item)] = {
+                "id":            pe.id,
+                "proposed_size": pe.proposed_size,
+                "proposed_qty":  pe.proposed_qty,
+                "proposed_by":   parse_display_name(pe.proposed_by),
+                }
+    cadet_roles = {}
+    if role == "admin":
+        auth_data = auth._load()
+        for k, entry in auth_data.items():
+            cadet_roles[k] = entry.get("role", "cadet")
     return render_template(
         "cadets.html",
         cadet_data=cadet_data,
+        cadet_roles = cadet_roles,
         role=role,
         cadet_name=logged_in_name,
         display_name=display_name,
         inventory_data=inventory_data,
         requests=pending_requests,
+        pending_edits=pending_edits,
         error=error,
     )
 
@@ -216,7 +240,7 @@ def register_page():
             ok = auth.register(pending, email, pwd)
             if ok:
                 session.pop("pending_registration", None)
-                session["role"] = "cadet"
+                session["role"] = auth.get_role(pending)  # 'cadet' or 'subadmin'
                 session["cadet_name"] = pending
                 return redirect(url_for("cadet"))
             else:
@@ -454,7 +478,7 @@ def update_cadet_field():
 @app.route("/cadets/save", methods=["POST"])
 def save_cadet_edits():
     role = session.get("role")
-    if role not in ("cadet", "admin"):
+    if role not in ("cadet", "admin", "subadmin"):
         return jsonify({"ok": False, "error": "Not logged in"}), 403
 
     data       = request.get_json()
@@ -462,8 +486,10 @@ def save_cadet_edits():
     category   = data.get("category", "")
     items      = data.get("items", [])
 
-    if role == "cadet" and cadet_name.lower() != (current_cadet_name() or "").lower():
-        return jsonify({"ok": False, "error": "Unauthorized"}), 403
+    # Cadets and subadmins can only directly save their own row.
+    # SubAdmin editing another cadet must use /cadets/propose instead.
+    if role in ("cadet", "subadmin") and cadet_name.lower() != (current_cadet_name() or "").lower():
+        return jsonify({"ok": False, "error": "Unauthorized — use propose endpoint for other cadets"}), 403
 
     filepath = os.path.join("cadet_data", f"CadetData_{category}.xlsx")
     try:
@@ -479,21 +505,39 @@ def save_cadet_edits():
                 break
             all_rows.append(list(row))
         wb.close()
-
+        
         # Apply edits to the in-memory snapshot
+        cadet_found = False
         for r in all_rows:
             if str(r[0] or "").strip().lower() == cadet_name.lower():
+                cadet_found = True
+                print(f"[match] item_clean values from request: {[e['item'].replace(' ','').replace('-','').lower() for e in items]}")
+                print(f"[match] h_clean values from headers: {[clean_uniform_name(h).replace(' ','').replace('-','').lower() for h in headers if h]}")
                 for edit in items:
+                    item_clean = edit["item"].replace(" ", "").replace("-", "").lower()
                     for idx, h in enumerate(headers):
-                        if h and edit["item"].lower() in h.lower():
+                        if not h:
+                            continue
+                        h_clean = clean_uniform_name(h).replace(" ", "").replace("-", "").lower()
+                        if h_clean.endswith("qty"):   # ← skip qty columns, they're written via idx+1
+                            continue
+                        if h_clean == item_clean:
                             if idx < len(r):
-                                r[idx] = edit.get("size", "")
+                                new_size = edit.get("size", "")
+                                if new_size != "":
+                                    r[idx] = new_size
                             if idx + 1 < len(r):
-                                r[idx + 1] = edit.get("qty", "")
+                                new_qty = edit.get("qty", "")
+                                if new_qty != "":
+                                    r[idx + 1] = new_qty
                             break
-                break
-        else:
+                
+
+        if not cadet_found:
             return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
+        print(f"[save] applying edits: {items}")
+        # else:
+        #     return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
 
         # Write to temp file then atomically replace — prevents Windows
         # file-locking from truncating the file mid-write.
@@ -520,6 +564,197 @@ def save_cadet_edits():
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+    
+
+# ── SubAdmin: propose an edit ─────────────────────────────────────────────────
+
+@app.route("/cadets/propose", methods=["POST"])
+def propose_cadet_edit():
+    """
+    SubAdmin proposes a change to another cadet's uniform data.
+    Creates (or overwrites) a PendingEdit row — does NOT touch the Excel file.
+    Admin must approve via /cadets/pending/resolve before the Excel is updated.
+    """
+    if not is_subadmin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 403
+
+    data       = request.get_json()
+    cadet_name = data.get("cadet_name", "").strip()
+    category   = data.get("category", "")
+    items      = data.get("items", [])          # list of {item, size, qty}
+    proposed_by = current_cadet_name()
+
+    if not cadet_name or not category or not items:
+        return jsonify({"ok": False, "error": "Missing fields"}), 400
+
+    created = []
+    for edit in items:
+        item_name = edit.get("item", "").strip()
+        if not item_name:
+            continue
+        # Overwrite any existing PENDING edit for this exact cell
+        existing = PendingEdit.query.filter_by(
+            cadet_name=cadet_name.lower(),
+            category=category,
+            item=item_name,
+            status="PENDING"
+        ).first()
+        if existing:
+            existing.proposed_size = edit.get("size", "")
+            existing.proposed_qty  = edit.get("qty", "")
+            existing.proposed_by   = proposed_by
+            existing.created_at    = __import__("datetime").datetime.utcnow()
+            created.append(existing.id)
+        else:
+            pe = PendingEdit(
+                cadet_name    = cadet_name.lower(),
+                category      = category,
+                item          = item_name,
+                proposed_size = edit.get("size", ""),
+                proposed_qty  = edit.get("qty", ""),
+                proposed_by   = proposed_by,
+                status        = "PENDING",
+            )
+            db.session.add(pe)
+            db.session.flush()   # get pe.id before commit
+            created.append(pe.id)
+
+    db.session.commit()
+    return jsonify({"ok": True, "pending_ids": created})
+
+
+# ── Admin: list pending edits ─────────────────────────────────────────────────
+
+@app.route("/cadets/pending", methods=["GET"])
+def list_pending_edits():
+    """Return all PENDING proposed edits as JSON. Visible to admin and subadmin."""
+    if not can_view_all():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 403
+
+    edits = PendingEdit.query.filter_by(status="PENDING").order_by(PendingEdit.created_at).all()
+    return jsonify({
+        "ok": True,
+        "edits": [
+            {
+                "id":            e.id,
+                "cadet_name":    e.cadet_name,
+                "category":      e.category,
+                "item":          e.item,
+                "proposed_size": e.proposed_size,
+                "proposed_qty":  e.proposed_qty,
+                "proposed_by":   parse_display_name(e.proposed_by),
+                "created_at":    e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in edits
+        ]
+    })
+
+
+# ── Admin: approve or deny a pending edit ────────────────────────────────────
+
+@app.route("/cadets/pending/resolve", methods=["POST"])
+def resolve_pending_edit():
+    """
+    Admin approves or denies a proposed edit.
+    action = 'approve' → apply the edit to Excel, mark APPROVED, delete row.
+    action = 'deny'    → mark DENIED, delete row.
+    """
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 403
+
+    data   = request.get_json()
+    pe_id  = data.get("id")
+    action = data.get("action")   # 'approve' or 'deny'
+
+    if action not in ("approve", "deny"):
+        return jsonify({"ok": False, "error": "action must be 'approve' or 'deny'"}), 400
+
+    pe = PendingEdit.query.get(pe_id)
+    if not pe:
+        return jsonify({"ok": False, "error": "Pending edit not found"}), 404
+
+    if action == "deny":
+        db.session.delete(pe)
+        db.session.commit()
+        return jsonify({"ok": True, "action": "denied"})
+
+    # ── Approve: write the change to the Excel file ──────────────────────────
+    filepath = os.path.join("cadet_data", f"CadetData_{pe.category}.xlsx")
+    try:
+        wb      = openpyxl.load_workbook(filepath, data_only=True)
+        ws      = wb.active
+        headers = [c.value.strip() if isinstance(c.value, str) else "" for c in ws[1]]
+        all_rows = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not any(row):
+                break
+            all_rows.append(list(row))
+        wb.close()
+
+        cadet_found = False
+        for r in all_rows:
+            if str(r[0] or "").strip().lower() == pe.cadet_name.lower():
+                cadet_found = True
+                for idx, h in enumerate(headers):
+                    h_clean = clean_uniform_name(h).strip().lower() if h else ""
+                    if h_clean == pe.item.strip().lower():
+                        if idx < len(r):
+                            r[idx] = pe.proposed_size or r[idx]
+                        if idx + 1 < len(r):
+                            r[idx + 1] = pe.proposed_qty or r[idx + 1]
+                        break
+
+        if not cadet_found:
+            return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
+
+        wb_new = openpyxl.Workbook()
+        ws_new = wb_new.active
+        for j, val in enumerate(headers):
+            ws_new.cell(row=1, column=j + 1).value = val
+        for i, row in enumerate(all_rows):
+            for j, val in enumerate(row):
+                ws_new.cell(row=2 + i, column=j + 1).value = val
+
+        dir_name = os.path.dirname(os.path.abspath(filepath))
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".xlsx")
+        try:
+            os.close(tmp_fd)
+            wb_new.save(tmp_path)
+            shutil.move(tmp_path, filepath)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+        db.session.delete(pe)
+        db.session.commit()
+        return jsonify({"ok": True, "action": "approved"})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── Admin: set cadet role ─────────────────────────────────────────────────────
+
+@app.route("/cadets/set-role", methods=["POST"])
+def set_cadet_role():
+    """Toggle a cadet's role between 'cadet' and 'subadmin'. Admin only."""
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    name = data.get("name", "").strip()
+    role = data.get("role", "").strip()
+
+    if not name:
+        return jsonify({"ok": False, "error": "Name required"}), 400
+
+    ok = auth.set_role(name, role)
+    if not ok:
+        return jsonify({"ok": False, "error": "Cadet not found or not registered"}), 404
+    return jsonify({"ok": True, "name": name, "role": role})
 
 
 # ── Submit uniform request ────────────────────────────────────────────────────
@@ -528,7 +763,7 @@ def save_cadet_edits():
 @app.route("/cadets/request", methods=["POST"])
 def cadet_request():
     role = session.get("role")
-    if role not in ("cadet", "admin"):
+    if role not in ("cadet", "admin", "subadmin"):
         return jsonify({"ok": False, "error": "Not logged in"}), 403
 
     data = request.get_json()
