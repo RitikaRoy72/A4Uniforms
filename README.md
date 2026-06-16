@@ -98,6 +98,11 @@ A4Uniforms/
 ## Project Updates Log
 Full log: https://docs.google.com/document/d/1XySOlcomjNhRcHuvFETMcPWZkMtwsbMxRUwVOSrEWCE/edit?tab=t.0
 
+### May 1 - June 16 2026
+- Updated backgroun and website aesthetic to include moral
+- Added subadmin account for increaed secruity
+- Made program rasberry pi compatible
+
 ### March 28 - Apr 3, 2026
 Estimated Total Time: 20 hours
 
