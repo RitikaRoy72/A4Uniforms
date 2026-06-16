@@ -181,8 +181,4 @@ Estimated Total Time: 4 hours
 ---
 
 ## Bugs / Known Issues
-- Inventory edit method in `inventory.html` not yet implemented
 - Email system for semester uniform updates not yet implemented
-
-## Contributing
-Contributions are welcome! Feel free to submit pull requests for bug fixes, enhancements, or additional features.
