@@ -61,6 +61,7 @@ A4Uniforms/
 ├── models.py                # SQLAlchemy models
 ├── auth.py                  # Registration, login, password reset
 ├── mailer.py                # Flask-Mail integration
+├── file_locks.py            # python pipeline to ensure simultaneous edits do not overwrite each other
 ├── README.md
 │
 ├── cadet_data/
