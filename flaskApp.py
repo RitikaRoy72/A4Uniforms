@@ -9,6 +9,7 @@ from flask import send_file
 import auth
 from inventory_parser import load_inventory
 from mailer import init_mail, send_reset_email
+from file_locks import get_lock, LockTimeout
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -325,66 +326,71 @@ def rewrite_excel_sorted(filepath, new_row=None, delete_name=None, update=None):
     Backs up AFTER a successful read, so we never back up or overwrite
     a file we could not parse.
     """
-    # --- Read first; raise immediately if file is unreadable ---
-    wb_read = openpyxl.load_workbook(filepath, data_only=True)
-    ws_read = wb_read.active
+    # The lock is held across the ENTIRE read -> modify -> write cycle, not
+    # just the write. That's what closes the race: a second caller blocks
+    # here until the first is fully done, then re-reads the file fresh
+    # (picking up the first caller's change) before applying its own edit.
+    with get_lock(filepath):
+        # --- Read first; raise immediately if file is unreadable ---
+        wb_read = openpyxl.load_workbook(filepath, data_only=True)
+        ws_read = wb_read.active
 
-    header    = [c.value for c in ws_read[1]]
-    data_rows = []
-    for row in ws_read.iter_rows(min_row=2, values_only=True):
-        if not any(row):
-            break
-        data_rows.append(list(row))
-    wb_read.close()
-
-    # Apply delete
-    if delete_name:
-        data_rows = [r for r in data_rows
-                     if str(r[0] or "").strip().lower() != delete_name.strip().lower()]
-
-    # Apply update
-    if update:
-        for r in data_rows:
-            if str(r[0] or "").strip().lower() == update["name"].strip().lower():
-                field = update["field"]
-                if field == "status":
-                    r[1] = update["value"]
-                elif field == "gender":
-                    r[2] = update["value"]
+        header    = [c.value for c in ws_read[1]]
+        data_rows = []
+        for row in ws_read.iter_rows(min_row=2, values_only=True):
+            if not any(row):
                 break
+            data_rows.append(list(row))
+        wb_read.close()
 
-    # Apply add
-    if new_row:
-        data_rows.append(new_row)
+        # Apply delete
+        if delete_name:
+            data_rows = [r for r in data_rows
+                         if str(r[0] or "").strip().lower() != delete_name.strip().lower()]
 
-    # Sort: (year_rank, name)
-    data_rows.sort(key=lambda r: sort_key((r[0], r[1])))
+        # Apply update
+        if update:
+            for r in data_rows:
+                if str(r[0] or "").strip().lower() == update["name"].strip().lower():
+                    field = update["field"]
+                    if field == "status":
+                        r[1] = update["value"]
+                    elif field == "gender":
+                        r[2] = update["value"]
+                    break
 
-    # Write to a temp file first, then atomically replace the original.
-    # This prevents Windows file-locking from producing a half-written,
-    # corrupted file when Werkzeug or another process has the original open.
-    wb_new = openpyxl.Workbook()
-    ws_new = wb_new.active
+        # Apply add
+        if new_row:
+            data_rows.append(new_row)
 
-    for j, val in enumerate(header):
-        ws_new.cell(row=1, column=j + 1).value = val
+        # Sort: (year_rank, name)
+        data_rows.sort(key=lambda r: sort_key((r[0], r[1])))
 
-    for i, row in enumerate(data_rows):
-        for j, val in enumerate(row):
-            ws_new.cell(row=2 + i, column=j + 1).value = val
+        # Write to a temp file first, then atomically replace the original.
+        # This prevents Windows file-locking from producing a half-written,
+        # corrupted file when Werkzeug or another process has the original open.
+        wb_new = openpyxl.Workbook()
+        ws_new = wb_new.active
 
-    dir_name = os.path.dirname(os.path.abspath(filepath))
-    tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".xlsx")
-    try:
-        os.close(tmp_fd)
-        wb_new.save(tmp_path)
-        shutil.move(tmp_path, filepath)
-    except Exception:
+        for j, val in enumerate(header):
+            ws_new.cell(row=1, column=j + 1).value = val
+
+        for i, row in enumerate(data_rows):
+            for j, val in enumerate(row):
+                ws_new.cell(row=2 + i, column=j + 1).value = val
+
+        dir_name = os.path.dirname(os.path.abspath(filepath))
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".xlsx")
         try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+            os.close(tmp_fd)
+            wb_new.save(tmp_path)
+            shutil.move(tmp_path, filepath)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
 
 @app.route("/cadets/add", methods=["POST"])
@@ -419,6 +425,9 @@ def add_cadet():
             new_row = [name, status, gender] + [""] * (n_cols - 3)
             wb.close()
             rewrite_excel_sorted(filepath, new_row=new_row)
+        except LockTimeout:
+            print(f"Warning: {filename} is locked by another save right now, skipping")
+            skipped.append(filename)
         except Exception as e:
             print(f"Warning: skipping corrupted file {filename}: {e}")
             skipped.append(filename)
@@ -437,15 +446,24 @@ def delete_cadet():
     if not name:
         return jsonify({"ok": False, "error": "Name required"}), 400
 
+    skipped = []
     for filename in os.listdir("cadet_data"):
         if not filename.endswith(".xlsx"):
             continue
         filepath = os.path.join("cadet_data", filename)
         try:
             rewrite_excel_sorted(filepath, delete_name=name)
+        except LockTimeout:
+            print(f"Warning: {filename} is locked by another save right now, skipping")
+            skipped.append(filename)
         except Exception as e:
             pass  # file may not have this cadet, that is fine
 
+    if skipped:
+        return jsonify({
+            "ok": True,
+            "warning": f"Could not update {', '.join(skipped)} — busy with another save. Try deleting again in a moment."
+        })
     return jsonify({"ok": True})
 
 
@@ -468,6 +486,8 @@ def update_cadet_field():
     filepath = os.path.join("cadet_data", f"CadetData_{category}.xlsx")
     try:
         rewrite_excel_sorted(filepath, update={"name": name, "field": field, "value": value})
+    except LockTimeout:
+        return jsonify({"ok": False, "error": "Someone else is saving changes to this sheet right now. Please try again in a few seconds."}), 409
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -493,75 +513,78 @@ def save_cadet_edits():
 
     filepath = os.path.join("cadet_data", f"CadetData_{category}.xlsx")
     try:
-        # Read with data_only=True to avoid CRC/zip errors on files with comments
-        wb      = openpyxl.load_workbook(filepath, data_only=True)
-        ws      = wb.active
-        headers = [c.value.strip() if isinstance(c.value, str) else "" for c in ws[1]]
+        with get_lock(filepath):
+            # Read with data_only=True to avoid CRC/zip errors on files with comments
+            wb      = openpyxl.load_workbook(filepath, data_only=True)
+            ws      = wb.active
+            headers = [c.value.strip() if isinstance(c.value, str) else "" for c in ws[1]]
 
-        # Build a full data snapshot so we can pass it through rewrite_excel_sorted
-        all_rows = []
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if not any(row):
-                break
-            all_rows.append(list(row))
-        wb.close()
-        
-        # Apply edits to the in-memory snapshot
-        cadet_found = False
-        for r in all_rows:
-            if str(r[0] or "").strip().lower() == cadet_name.lower():
-                cadet_found = True
-                print(f"[match] item_clean values from request: {[e['item'].replace(' ','').replace('-','').lower() for e in items]}")
-                print(f"[match] h_clean values from headers: {[clean_uniform_name(h).replace(' ','').replace('-','').lower() for h in headers if h]}")
-                for edit in items:
-                    item_clean = edit["item"].replace(" ", "").replace("-", "").lower()
-                    for idx, h in enumerate(headers):
-                        if not h:
-                            continue
-                        h_clean = clean_uniform_name(h).replace(" ", "").replace("-", "").lower()
-                        if h_clean.endswith("qty"):   # ← skip qty columns, they're written via idx+1
-                            continue
-                        if h_clean == item_clean:
-                            if idx < len(r):
-                                new_size = edit.get("size", "")
-                                if new_size != "":
-                                    r[idx] = new_size
-                            if idx + 1 < len(r):
-                                new_qty = edit.get("qty", "")
-                                if new_qty != "":
-                                    r[idx + 1] = new_qty
-                            break
-                
+            # Build a full data snapshot so we can pass it through rewrite_excel_sorted
+            all_rows = []
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if not any(row):
+                    break
+                all_rows.append(list(row))
+            wb.close()
 
-        if not cadet_found:
-            return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
-        print(f"[save] applying edits: {items}")
-        # else:
-        #     return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
+            # Apply edits to the in-memory snapshot
+            cadet_found = False
+            for r in all_rows:
+                if str(r[0] or "").strip().lower() == cadet_name.lower():
+                    cadet_found = True
+                    print(f"[match] item_clean values from request: {[e['item'].replace(' ','').replace('-','').lower() for e in items]}")
+                    print(f"[match] h_clean values from headers: {[clean_uniform_name(h).replace(' ','').replace('-','').lower() for h in headers if h]}")
+                    for edit in items:
+                        item_clean = edit["item"].replace(" ", "").replace("-", "").lower()
+                        for idx, h in enumerate(headers):
+                            if not h:
+                                continue
+                            h_clean = clean_uniform_name(h).replace(" ", "").replace("-", "").lower()
+                            if h_clean.endswith("qty"):   # ← skip qty columns, they're written via idx+1
+                                continue
+                            if h_clean == item_clean:
+                                if idx < len(r):
+                                    new_size = edit.get("size", "")
+                                    if new_size != "":
+                                        r[idx] = new_size
+                                if idx + 1 < len(r):
+                                    new_qty = edit.get("qty", "")
+                                    if new_qty != "":
+                                        r[idx + 1] = new_qty
+                                break
 
-        # Write to temp file then atomically replace — prevents Windows
-        # file-locking from truncating the file mid-write.
-        wb_new = openpyxl.Workbook()
-        ws_new = wb_new.active
-        for j, val in enumerate(headers):
-            ws_new.cell(row=1, column=j + 1).value = val
-        for i, row in enumerate(all_rows):
-            for j, val in enumerate(row):
-                ws_new.cell(row=2 + i, column=j + 1).value = val
-        dir_name = os.path.dirname(os.path.abspath(filepath))
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".xlsx")
-        try:
-            os.close(tmp_fd)
-            wb_new.save(tmp_path)
-            shutil.move(tmp_path, filepath)
-        except Exception:
+
+            if not cadet_found:
+                return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
+            print(f"[save] applying edits: {items}")
+            # else:
+            #     return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
+
+            # Write to temp file then atomically replace — prevents Windows
+            # file-locking from truncating the file mid-write.
+            wb_new = openpyxl.Workbook()
+            ws_new = wb_new.active
+            for j, val in enumerate(headers):
+                ws_new.cell(row=1, column=j + 1).value = val
+            for i, row in enumerate(all_rows):
+                for j, val in enumerate(row):
+                    ws_new.cell(row=2 + i, column=j + 1).value = val
+            dir_name = os.path.dirname(os.path.abspath(filepath))
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".xlsx")
             try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+                os.close(tmp_fd)
+                wb_new.save(tmp_path)
+                shutil.move(tmp_path, filepath)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
 
         return jsonify({"ok": True})
+    except LockTimeout:
+        return jsonify({"ok": False, "error": "Someone else is saving changes to this sheet right now. Please try again in a few seconds."}), 409
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
     
@@ -681,57 +704,60 @@ def resolve_pending_edit():
     # ── Approve: write the change to the Excel file ──────────────────────────
     filepath = os.path.join("cadet_data", f"CadetData_{pe.category}.xlsx")
     try:
-        wb      = openpyxl.load_workbook(filepath, data_only=True)
-        ws      = wb.active
-        headers = [c.value.strip() if isinstance(c.value, str) else "" for c in ws[1]]
-        all_rows = []
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if not any(row):
-                break
-            all_rows.append(list(row))
-        wb.close()
+        with get_lock(filepath):
+            wb      = openpyxl.load_workbook(filepath, data_only=True)
+            ws      = wb.active
+            headers = [c.value.strip() if isinstance(c.value, str) else "" for c in ws[1]]
+            all_rows = []
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if not any(row):
+                    break
+                all_rows.append(list(row))
+            wb.close()
 
-        cadet_found = False
-        for r in all_rows:
-            if str(r[0] or "").strip().lower() == pe.cadet_name.lower():
-                cadet_found = True
-                for idx, h in enumerate(headers):
-                    h_clean = clean_uniform_name(h).strip().lower() if h else ""
-                    if h_clean == pe.item.strip().lower():
-                        if idx < len(r):
-                            r[idx] = pe.proposed_size or r[idx]
-                        if idx + 1 < len(r):
-                            r[idx + 1] = pe.proposed_qty or r[idx + 1]
-                        break
+            cadet_found = False
+            for r in all_rows:
+                if str(r[0] or "").strip().lower() == pe.cadet_name.lower():
+                    cadet_found = True
+                    for idx, h in enumerate(headers):
+                        h_clean = clean_uniform_name(h).strip().lower() if h else ""
+                        if h_clean == pe.item.strip().lower():
+                            if idx < len(r):
+                                r[idx] = pe.proposed_size or r[idx]
+                            if idx + 1 < len(r):
+                                r[idx + 1] = pe.proposed_qty or r[idx + 1]
+                            break
 
-        if not cadet_found:
-            return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
+            if not cadet_found:
+                return jsonify({"ok": False, "error": "Cadet not found in sheet"}), 404
 
-        wb_new = openpyxl.Workbook()
-        ws_new = wb_new.active
-        for j, val in enumerate(headers):
-            ws_new.cell(row=1, column=j + 1).value = val
-        for i, row in enumerate(all_rows):
-            for j, val in enumerate(row):
-                ws_new.cell(row=2 + i, column=j + 1).value = val
+            wb_new = openpyxl.Workbook()
+            ws_new = wb_new.active
+            for j, val in enumerate(headers):
+                ws_new.cell(row=1, column=j + 1).value = val
+            for i, row in enumerate(all_rows):
+                for j, val in enumerate(row):
+                    ws_new.cell(row=2 + i, column=j + 1).value = val
 
-        dir_name = os.path.dirname(os.path.abspath(filepath))
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".xlsx")
-        try:
-            os.close(tmp_fd)
-            wb_new.save(tmp_path)
-            shutil.move(tmp_path, filepath)
-        except Exception:
+            dir_name = os.path.dirname(os.path.abspath(filepath))
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".xlsx")
             try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+                os.close(tmp_fd)
+                wb_new.save(tmp_path)
+                shutil.move(tmp_path, filepath)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
 
         db.session.delete(pe)
         db.session.commit()
         return jsonify({"ok": True, "action": "approved"})
 
+    except LockTimeout:
+        return jsonify({"ok": False, "error": "Someone else is saving changes to this sheet right now. Please try again in a few seconds."}), 409
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
