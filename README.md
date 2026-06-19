@@ -98,6 +98,11 @@ A4Uniforms/
 ## Project Updates Log
 Full log: https://docs.google.com/document/d/1XySOlcomjNhRcHuvFETMcPWZkMtwsbMxRUwVOSrEWCE/edit?tab=t.0
 
+### May 1 - June 16 2026
+- Updated backgroun and website aesthetic to include moral
+- Added subadmin account for increaed secruity
+- Made program rasberry pi compatible
+
 ### March 28 - Apr 3, 2026
 Estimated Total Time: 20 hours
 
@@ -176,8 +181,4 @@ Estimated Total Time: 4 hours
 ---
 
 ## Bugs / Known Issues
-- Inventory edit method in `inventory.html` not yet implemented
 - Email system for semester uniform updates not yet implemented
-
-## Contributing
-Contributions are welcome! Feel free to submit pull requests for bug fixes, enhancements, or additional features.
